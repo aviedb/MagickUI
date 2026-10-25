@@ -6,14 +6,26 @@
 	objectVersion = 90;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		B2CAFFC9308E4496009214B8 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = B2CAFFC3308E4496009214B8 /* README.md */; };
+		B2CAFFDC308E488E009214B8 /* .gitignore in Resources */ = {isa = PBXBuildFile; fileRef = B2CAFFDB308E4888009214B8 /* .gitignore */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		000000000000000000000120 /* MagickUI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MagickUI.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B2CAFFC3308E4496009214B8 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		B2CAFFDB308E4888009214B8 /* .gitignore */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		000000000000000000000010 /* MagickUI */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = MagickUI;
+			sourceTree = "<group>";
+		};
+		B2CAFFD6308E4777009214B8 /* docs */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = docs;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -30,6 +42,9 @@
 		000000000000000000000001 = {
 			isa = PBXGroup;
 			children = (
+				B2CAFFDB308E4888009214B8 /* .gitignore */,
+				B2CAFFD6308E4777009214B8 /* docs */,
+				B2CAFFC3308E4496009214B8 /* README.md */,
 				000000000000000000000010 /* MagickUI */,
 				000000000000000000000020 /* Products */,
 			);
@@ -58,6 +73,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				000000000000000000000010 /* MagickUI */,
+				B2CAFFD6308E4777009214B8 /* docs */,
 			);
 			name = MagickUI;
 			productName = MyApp;
@@ -103,6 +119,8 @@
 		000000000000000140000000 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
+				B2CAFFC9308E4496009214B8 /* README.md in Resources */,
+				B2CAFFDC308E488E009214B8 /* .gitignore in Resources */,
 			);
 		};
 /* End PBXResourcesBuildPhase section */
@@ -252,13 +270,14 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Magick GUI";
+				INFOPLIST_KEY_CFBundleDisplayName = MagickUI;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -292,13 +311,14 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Magick GUI";
+				INFOPLIST_KEY_CFBundleDisplayName = MagickUI;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
