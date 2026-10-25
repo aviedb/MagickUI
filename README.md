@@ -4,12 +4,14 @@
 
 Drop your images into the window, then choose what to do: compress to a target size, convert formats, crop, resize, rotate, or strip metadata. Everything runs locally on your Mac and works in batch.
 
-![Main Screen](docs/main-screen.png)
-![Action Screen](docs/action-screen.png)
+<p align="center">
+  <img src="docs/main-screen.png" alt="Main screen" width="49%">
+  <img src="docs/action-screen.png" alt="Action screen" width="49%">
+</p>
 
 ## Why
 
-There are plenty of online image tools (shout-out to my fav [ihateimg.cv](https://ihateimg.cv)), but I wanted one that works offline and in batch. Mac App alternatives exist, but many of them are a \~$20 license which is very pretentious. [ImageMagick](https://imagemagick.org) is free and open source, but it is mainly a command-line tool, so I built a GUI on top of it.
+There are plenty of online image tools (shout-out to my fav [ihateimg.cv](https://ihateimg.cv)), but I wanted one that works offline and in batch. Mac App alternatives exist, but many of them are a \~$20 license which is a little bit too steep. [ImageMagick](https://imagemagick.org) is free and open source, but it is mainly a command-line tool, so I built a GUI on top of it.
 
 ## Features
 
@@ -127,4 +129,6 @@ Built on [ImageMagick](https://imagemagick.org), which is a separate project wit
 
 ## License
 
-Add a license file (for example MIT) and name it here.
+MagickUI is released under the [MIT License](LICENSE).
+
+ImageMagick is a separate project under its own [license](https://imagemagick.org/script/license.php) and is not bundled with this app.
