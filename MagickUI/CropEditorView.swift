@@ -10,12 +10,29 @@ struct CropPanel: View {
     var body: some View {
         if let item = workspace.selectedItem {
             if let size = item.pixelSize {
-                HStack(spacing: 0) {
-                    editor(item: item, size: size)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    Divider()
-                    controls(item: item, size: size)
-                        .frame(width: 270)
+                GeometryReader { geometry in
+                    if geometry.size.width >= 740 {
+                        // Wide: editor on the left, controls on the right.
+                        HStack(spacing: 0) {
+                            editor(item: item, size: size)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            Divider()
+                            ScrollView {
+                                controls(item: item, size: size)
+                            }
+                            .frame(width: 270)
+                        }
+                    } else {
+                        // Narrow: editor on top, controls below, and the whole thing scrolls.
+                        ScrollView {
+                            VStack(spacing: 0) {
+                                editor(item: item, size: size)
+                                    .frame(height: max(240, min(geometry.size.height * 0.7, 480)))
+                                Divider()
+                                controls(item: item, size: size)
+                            }
+                        }
+                    }
                 }
             } else {
                 loading("Reading image size…")
@@ -63,8 +80,7 @@ struct CropPanel: View {
                 workspace.applyRatioChange()
             })
 
-        return ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+        return VStack(alignment: .leading, spacing: 16) {
                 Text(item.name)
                     .font(.headline)
                     .lineLimit(1)
@@ -136,7 +152,6 @@ struct CropPanel: View {
                 }
             }
             .padding(16)
-        }
     }
 
     private func customBinding(_ keyPath: WritableKeyPath<CropSettings, Double>) -> Binding<Double> {

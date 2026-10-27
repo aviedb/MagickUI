@@ -1,68 +1,23 @@
 import SwiftUI
-import AppKit
-import Combine
 
+/// The windows (main + Settings) are created by `AppContext`, so Open With, Dock drops,
+/// Finder Services and the menu bar can all reuse the same window.
+/// The only SwiftUI scene is the menu bar item.
 @main
 struct MagickToolsApp: App {
-    @StateObject private var appState: AppState
-    @StateObject private var workspace: Workspace
-
-    init() {
-        let state = AppState()
-        _appState = StateObject(wrappedValue: state)
-        _workspace = StateObject(wrappedValue: Workspace(app: state))
-    }
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @AppStorage("showMenuBarIcon") private var showMenuBarIcon = true
 
     var body: some Scene {
-        WindowGroup {
-            RootView()
-                .environmentObject(appState)
-                .environmentObject(workspace)
+        MenuBarExtra("MagickUI", systemImage: "photo.on.rectangle.angled", isInserted: $showMenuBarIcon) {
+            MenuBarContent()
+                .environmentObject(AppContext.shared.watcher)
         }
-    }
-}
-
-/// Holds the located `magick` executable for the whole app.
-@MainActor
-final class AppState: ObservableObject {
-    @Published var runner: MagickRunner?
-    @Published var versionLine = ""
-    @Published var problem: String?
-
-    init() {
-        Task { await refresh() }
-    }
-
-    func refresh() async {
-        guard let url = MagickLocator.locate() else {
-            runner = nil
-            versionLine = ""
-            problem = "ImageMagick (magick) wasn't found."
-            return
-        }
-        let candidate = MagickRunner(executable: url)
-        do {
-            let output = try await candidate.run(["-version"])
-            versionLine = output.components(separatedBy: "\n").first ?? ""
-            runner = candidate
-            problem = nil
-        } catch {
-            runner = nil
-            versionLine = ""
-            problem = "Found magick at \(url.path), but it didn't run: \(error.localizedDescription)"
-        }
-    }
-
-    func chooseExecutable() {
-        let panel = NSOpenPanel()
-        panel.message = "Select the magick executable (usually /opt/homebrew/bin/magick)"
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.treatsFilePackagesAsDirectories = true
-        panel.directoryURL = URL(fileURLWithPath: "/opt/homebrew/bin")
-        if panel.runModal() == .OK, let url = panel.url {
-            MagickLocator.remember(url)
-            Task { await refresh() }
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings…") { AppContext.shared.showSettings() }
+                    .keyboardShortcut(",")
+            }
         }
     }
 }

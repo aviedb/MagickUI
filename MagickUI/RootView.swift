@@ -21,7 +21,6 @@ struct RootView: View {
                     .padding(16)
             }
         }
-        .frame(minWidth: 1000, minHeight: 660)
         .overlay {
             if isTargeted && !workspace.items.isEmpty {
                 ZStack {
@@ -87,20 +86,37 @@ private struct DropZoneView: View {
 
 // MARK: - Workspace: sidebar + main panel + run bar
 
+/// Wide windows get the image list as a sidebar. Narrow windows (for example a window tiled into a
+/// quarter of the screen) get a compact thumbnail strip on top instead, so nothing is cut off.
 private struct WorkspaceView: View {
     let addMore: () -> Void
+    private let sidebarThreshold: CGFloat = 860
 
     var body: some View {
-        HStack(spacing: 0) {
-            SidebarView(addMore: addMore)
-                .frame(width: 300)
-            Divider()
-            VStack(spacing: 0) {
-                MainPanel()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                Divider()
-                RunBar()
+        GeometryReader { geometry in
+            if geometry.size.width >= sidebarThreshold {
+                HStack(spacing: 0) {
+                    SidebarView(addMore: addMore)
+                        .frame(width: 300)
+                    Divider()
+                    mainColumn
+                }
+            } else {
+                VStack(spacing: 0) {
+                    CompactImageStrip(addMore: addMore)
+                    Divider()
+                    mainColumn
+                }
             }
+        }
+    }
+
+    private var mainColumn: some View {
+        VStack(spacing: 0) {
+            MainPanel()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            Divider()
+            RunBar()
         }
     }
 }
@@ -239,6 +255,139 @@ private struct ImageRow: View {
                 .foregroundStyle(.red)
                 .lineLimit(4)
                 .textSelection(.enabled)
+        }
+    }
+}
+
+// MARK: - Compact image strip (narrow windows)
+
+private struct CompactImageStrip: View {
+    let addMore: () -> Void
+    @EnvironmentObject private var workspace: Workspace
+
+    private var countText: String {
+        workspace.items.count == 1 ? "1 image" : "\(workspace.items.count) images"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Text(countText).font(.subheadline.weight(.semibold))
+                if let notice = workspace.notice {
+                    Text(notice)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 4)
+                Button("Add…", action: addMore)
+                    .controlSize(.small)
+                    .disabled(workspace.isRunning)
+                Button("Clear") { workspace.clearAll() }
+                    .controlSize(.small)
+                    .disabled(workspace.isRunning)
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 8) {
+                    ForEach(workspace.items) { item in
+                        CompactThumb(item: item,
+                                     selected: item.id == workspace.selectedID,
+                                     locked: workspace.isRunning)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+            .frame(height: 60)
+
+            if let item = workspace.selectedItem {
+                Text(summary(for: item))
+                    .font(.caption)
+                    .foregroundStyle(color(for: item))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+        }
+        .padding(10)
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private func summary(for item: ImageItem) -> String {
+        var parts = [item.name]
+        if let size = item.pixelSize { parts.append("\(Int(size.width))×\(Int(size.height))") }
+        parts.append(formatBytes(item.byteSize))
+        switch item.status {
+        case .idle: break
+        case .running(let message): parts.append(message)
+        case .done(_, let inBytes, let outBytes, let note):
+            parts.append("✓ \(formatBytes(inBytes)) → \(formatBytes(outBytes))" + (note.isEmpty ? "" : " · \(note)"))
+        case .skipped(let message): parts.append(message)
+        case .failed(let message): parts.append(message)
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private func color(for item: ImageItem) -> Color {
+        switch item.status {
+        case .done: return .green
+        case .skipped: return .orange
+        case .failed: return .red
+        default: return .secondary
+        }
+    }
+}
+
+private struct CompactThumb: View {
+    let item: ImageItem
+    let selected: Bool
+    let locked: Bool
+    @EnvironmentObject private var workspace: Workspace
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            thumbnail
+                .frame(width: 56, height: 56)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(selected ? Color.accentColor : Color.primary.opacity(0.12),
+                                      lineWidth: selected ? 2.5 : 1)
+                )
+            badge
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { workspace.select(item.id) }
+        .contextMenu {
+            Button("Remove") { workspace.remove(item.id) }
+                .disabled(locked)
+        }
+        .help(item.name)
+    }
+
+    @ViewBuilder
+    private var thumbnail: some View {
+        if let image = item.thumbnail {
+            Image(nsImage: image)
+                .resizable()
+                .scaledToFill()
+        } else {
+            Rectangle().fill(Color.secondary.opacity(0.2))
+        }
+    }
+
+    @ViewBuilder
+    private var badge: some View {
+        switch item.status {
+        case .done:
+            Image(systemName: "checkmark.circle.fill").foregroundStyle(.white, .green)
+        case .skipped:
+            Image(systemName: "minus.circle.fill").foregroundStyle(.white, .orange)
+        case .failed:
+            Image(systemName: "xmark.circle.fill").foregroundStyle(.white, .red)
+        case .running:
+            ProgressView().controlSize(.mini)
+        case .idle:
+            EmptyView()
         }
     }
 }

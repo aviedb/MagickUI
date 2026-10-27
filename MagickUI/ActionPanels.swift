@@ -22,6 +22,7 @@ struct MainPanel: View {
     @ViewBuilder
     private func panel(for action: ImageAction) -> some View {
         switch action {
+        case .optimize: OptimizePanel()
         case .compress: CompressPanel()
         case .convert: ConvertPanel()
         case .crop: CropPanel()
@@ -174,15 +175,18 @@ struct CompressPanel: View {
                 .frame(width: 110)
             }
 
-            HStack(spacing: 8) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 76), spacing: 8)], alignment: .leading, spacing: 8) {
                 ForEach(presets, id: \.0) { preset in
-                    Button(preset.0) {
+                    Button {
                         workspace.compress.amount = preset.1
                         workspace.compress.unit = preset.2
+                    } label: {
+                        Text(preset.0).frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
                 }
             }
+            .frame(maxWidth: 420)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("Save as").font(.headline)
@@ -371,6 +375,7 @@ struct MetadataPanel: View {
 
 // MARK: - Bottom bar: where to save + Run
 
+/// Uses one row when there is room, and two rows when the window is narrow.
 struct RunBar: View {
     @EnvironmentObject private var app: AppState
     @EnvironmentObject private var workspace: Workspace
@@ -388,24 +393,55 @@ struct RunBar: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Save to").font(.caption).foregroundStyle(.secondary)
-                Text(workspace.outputFolder?.path ?? "Next to the originals")
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) {
+                saveToInfo(maxWidth: 240)
+                folderButtons
+                Spacer(minLength: 8)
+                extraButtons
+                runButton(minWidth: 170)
             }
-            .frame(maxWidth: 260, alignment: .leading)
 
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    saveToInfo(maxWidth: .infinity)
+                    folderButtons
+                }
+                HStack(spacing: 8) {
+                    extraButtons
+                    Spacer(minLength: 4)
+                    runButton(minWidth: 140)
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+    }
+
+    private func saveToInfo(maxWidth: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Save to").font(.caption).foregroundStyle(.secondary)
+            Text(workspace.outputFolder?.path ?? "Next to the originals")
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+        .frame(maxWidth: maxWidth, alignment: .leading)
+    }
+
+    private var folderButtons: some View {
+        HStack(spacing: 8) {
             Button("Choose…") { workspace.chooseOutputFolder() }
                 .disabled(workspace.isRunning)
             if workspace.outputFolder != nil {
                 Button("Reset") { workspace.outputFolder = nil }
                     .disabled(workspace.isRunning)
             }
+        }
+    }
 
-            Spacer()
-
+    @ViewBuilder
+    private var extraButtons: some View {
+        HStack(spacing: 8) {
             if !workspace.commandPreview.isEmpty {
                 Button("Show command") { showCommand.toggle() }
                     .popover(isPresented: $showCommand) {
@@ -419,22 +455,98 @@ struct RunBar: View {
                         .frame(width: 460, alignment: .leading)
                     }
             }
-
             if workspace.hasResults {
-                Button("Show results in Finder") { workspace.revealResults() }
+                Button("Show in Finder") { workspace.revealResults() }
+            }
+        }
+    }
+
+    private func runButton(minWidth: CGFloat) -> some View {
+        Button {
+            Task { await workspace.run() }
+        } label: {
+            Text(runLabel).frame(minWidth: minWidth)
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+        .keyboardShortcut(.defaultAction)
+        .disabled(!canRun)
+    }
+}
+
+// MARK: - Smart optimize
+
+/// Strength, metadata and conversion options. Shared by the main window and the watched-folder settings.
+struct OptimizeOptionsView: View {
+    @Binding var settings: OptimizeSettings
+
+    private var customFactor: Binding<Double> {
+        Binding(get: { Double(settings.customFactor) },
+                set: { settings.customFactor = Int($0) })
+    }
+
+    private var summary: String {
+        let factor = settings.factor
+        return "JPEG quality is capped at \(OptimizeCurves.jpegMaxQuality(factor)) (files already below it are only optimized losslessly). "
+            + "PNG colors are reduced with quality 0–\(OptimizeCurves.pngQualityMax(factor)). Dimensions never change."
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Strength").font(.headline)
+                Picker("", selection: $settings.level) {
+                    ForEach(OptimizeLevel.allCases) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(maxWidth: 340)
+
+                if settings.level == .custom {
+                    HStack {
+                        Slider(value: customFactor, in: 5...100, step: 1)
+                            .frame(width: 260)
+                        Text("\(settings.factor)")
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                    Text("5 keeps the most quality, 100 makes the smallest files. Balanced is 30 and Aggressive is 64.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Text(summary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
-            Button {
-                Task { await workspace.run() }
-            } label: {
-                Text(runLabel).frame(minWidth: 170)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .keyboardShortcut(.defaultAction)
-            .disabled(!canRun)
+            Toggle("Remove metadata (keeps the photo upright and its color profile)", isOn: $settings.stripMetadata)
+            Toggle("Convert HEIC, TIFF and BMP to JPG", isOn: $settings.convertIncompatible)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
+    }
+}
+
+struct OptimizePanel: View {
+    @EnvironmentObject private var workspace: Workspace
+
+    var body: some View {
+        PanelContainer(title: "Smart optimize",
+                       subtitle: "Makes files smaller without resizing them, using the open-source tools jpegoptim and pngquant.") {
+            OptimizeOptionsView(settings: $workspace.optimize)
+
+            if ExternalTool.jpegoptim == nil || ExternalTool.pngquant == nil {
+                Label("Install the optimizers once in Terminal:  brew install jpegoptim pngquant",
+                      systemImage: "exclamationmark.triangle.fill")
+                    .font(.callout)
+                    .foregroundStyle(.orange)
+                    .textSelection(.enabled)
+            }
+
+            Text("WebP is left alone because it's already efficient. Compare with “Compress to size”, which hits an exact KB target and may shrink the dimensions to do it.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 }
