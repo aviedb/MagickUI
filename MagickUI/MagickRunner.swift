@@ -5,18 +5,24 @@ nonisolated struct MagickError: LocalizedError {
     var errorDescription: String? { message }
 }
 
+nonisolated struct ProcessResult {
+    let status: Int32
+    let stdout: String
+    let stderr: String
+}
+
 /// Small mutable box so background reader threads can hand data back.
 private nonisolated final class DataBox: @unchecked Sendable {
     var data = Data()
 }
 
-/// Runs `magick` with an argument ARRAY (never a shell string), so filenames
-/// with spaces, quotes or leading dashes can't be misinterpreted.
+/// Runs a command-line tool (magick, jpegoptim, pngquant) with an argument ARRAY, never a shell string,
+/// so filenames with spaces, quotes or leading dashes can't be misinterpreted.
 nonisolated struct MagickRunner {
     let executable: URL
 
-    /// ImageMagick calls helper programs through PATH. A double-clicked Mac app has a
-    /// minimal PATH, so we add the Homebrew directories.
+    /// Tools call helper programs through PATH. A double-clicked Mac app has a minimal PATH,
+    /// so we add the Homebrew directories.
     static func processEnvironment() -> [String: String] {
         var env = ProcessInfo.processInfo.environment
         let extra = ["/opt/homebrew/bin", "/opt/homebrew/sbin", "/usr/local/bin", "/usr/bin", "/bin"]
@@ -28,13 +34,12 @@ nonisolated struct MagickRunner {
         return env
     }
 
-    /// Returns stdout. Throws `MagickError` (with magick's stderr) on a non-zero exit.
-    @discardableResult
-    func run(_ arguments: [String]) async throws -> String {
+    /// Runs the tool and returns its exit status and output. Throws only if it can't be launched.
+    func execute(_ arguments: [String]) async throws -> ProcessResult {
         let exe = executable
         let env = MagickRunner.processEnvironment()
 
-        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<String, Error>) in
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<ProcessResult, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 let process = Process()
                 process.executableURL = exe
@@ -51,7 +56,7 @@ nonisolated struct MagickRunner {
                     try process.run()
                 } catch {
                     continuation.resume(throwing: MagickError(
-                        message: "Could not launch magick: \(error.localizedDescription)"))
+                        message: "Could not launch \(exe.lastPathComponent): \(error.localizedDescription)"))
                     return
                 }
 
@@ -77,16 +82,21 @@ nonisolated struct MagickRunner {
                 let out = String(decoding: outBox.data, as: UTF8.self)
                 let err = String(decoding: errBox.data, as: UTF8.self)
                     .trimmingCharacters(in: .whitespacesAndNewlines)
-
-                if process.terminationStatus == 0 {
-                    continuation.resume(returning: out)
-                } else {
-                    let message = err.isEmpty
-                        ? "magick exited with status \(process.terminationStatus)."
-                        : err
-                    continuation.resume(throwing: MagickError(message: message))
-                }
+                continuation.resume(returning: ProcessResult(status: process.terminationStatus, stdout: out, stderr: err))
             }
         }
+    }
+
+    /// Returns stdout. Throws `MagickError` (with the tool's stderr) on a non-zero exit.
+    @discardableResult
+    func run(_ arguments: [String]) async throws -> String {
+        let result = try await execute(arguments)
+        guard result.status == 0 else {
+            let message = result.stderr.isEmpty
+                ? "\(executable.lastPathComponent) exited with status \(result.status)."
+                : result.stderr
+            throw MagickError(message: message)
+        }
+        return result.stdout
     }
 }

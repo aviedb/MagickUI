@@ -3,7 +3,7 @@ import AppKit
 
 // MARK: - Dropped images
 
-enum ItemStatus {
+nonisolated enum ItemStatus {
     case idle
     case running(String)
     case done(output: URL, inBytes: Int64, outBytes: Int64, note: String)
@@ -25,13 +25,14 @@ struct ImageItem: Identifiable {
 
 // MARK: - Actions
 
-enum ImageAction: String, CaseIterable, Identifiable {
-    case compress, convert, crop, resize, rotate, metadata
+nonisolated enum ImageAction: String, CaseIterable, Identifiable {
+    case optimize, compress, convert, crop, resize, rotate, metadata
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
+        case .optimize: return "Smart optimize"
         case .compress: return "Compress to size"
         case .convert: return "Convert format"
         case .crop: return "Crop"
@@ -43,6 +44,7 @@ enum ImageAction: String, CaseIterable, Identifiable {
 
     var subtitle: String {
         switch self {
+        case .optimize: return "Shrink files without ever resizing them. Great for everyday use."
         case .compress: return "Get each image under a size you choose, like 200 KB."
         case .convert: return "Turn images into JPG, PNG, WebP, HEIC and more."
         case .crop: return "Drag to crop, with aspect-ratio presets and a live preview."
@@ -54,6 +56,7 @@ enum ImageAction: String, CaseIterable, Identifiable {
 
     var symbol: String {
         switch self {
+        case .optimize: return "wand.and.stars"
         case .compress: return "arrow.down.right.and.arrow.up.left"
         case .convert: return "arrow.triangle.2.circlepath"
         case .crop: return "crop"
@@ -66,6 +69,7 @@ enum ImageAction: String, CaseIterable, Identifiable {
     /// Button verb, e.g. "Crop 3 images".
     var verb: String {
         switch self {
+        case .optimize: return "Optimize"
         case .compress: return "Compress"
         case .convert: return "Convert"
         case .crop: return "Crop"
@@ -78,6 +82,7 @@ enum ImageAction: String, CaseIterable, Identifiable {
     /// Appended to the output file name.
     var suffix: String {
         switch self {
+        case .optimize: return "_optimized"
         case .compress: return "_compressed"
         case .convert: return ""
         case .crop: return "_cropped"
@@ -88,9 +93,9 @@ enum ImageAction: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - Settings
+// MARK: - Settings (Codable so watched-folder rules can be saved)
 
-enum SizeUnit: String, CaseIterable, Identifiable {
+nonisolated enum SizeUnit: String, CaseIterable, Identifiable, Codable {
     case kb = "KB"
     case mb = "MB"
 
@@ -99,7 +104,7 @@ enum SizeUnit: String, CaseIterable, Identifiable {
     var bytes: Int64 { self == .kb ? 1_000 : 1_000_000 }
 }
 
-enum CompressFormat: String, CaseIterable, Identifiable {
+nonisolated enum CompressFormat: String, CaseIterable, Identifiable, Codable {
     case keep = "Same as original"
     case jpg = "JPG"
     case webp = "WebP"
@@ -107,7 +112,7 @@ enum CompressFormat: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-struct CompressSettings {
+nonisolated struct CompressSettings: Codable {
     var amount: Double = 200
     var unit: SizeUnit = .kb
     var format: CompressFormat = .keep
@@ -119,7 +124,7 @@ struct CompressSettings {
     }
 }
 
-struct ConvertSettings {
+nonisolated struct ConvertSettings: Codable {
     var target = "jpg"
     var useOther = false
     var otherExtension = ""
@@ -133,14 +138,14 @@ struct ConvertSettings {
     }
 }
 
-enum ResizeMode: String, CaseIterable, Identifiable {
+nonisolated enum ResizeMode: String, CaseIterable, Identifiable, Codable {
     case pixels = "Pixels"
     case percent = "Percent"
 
     var id: String { rawValue }
 }
 
-struct ResizeSettings {
+nonisolated struct ResizeSettings: Codable {
     var mode: ResizeMode = .pixels
     var width: Double = 1920
     var height: Double = 0
@@ -149,7 +154,7 @@ struct ResizeSettings {
     var shrinkOnly = true
 }
 
-enum RotateOperation: String, CaseIterable, Identifiable {
+nonisolated enum RotateOperation: String, CaseIterable, Identifiable, Codable {
     case right90 = "Rotate right 90°"
     case left90 = "Rotate left 90°"
     case turn180 = "Rotate 180°"

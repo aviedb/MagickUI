@@ -14,6 +14,7 @@
 
 /* Begin PBXFileReference section */
 		000000000000000000000120 /* MagickUI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MagickUI.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B2C1028A309067AA00BF8A25 /* MagickUI-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "MagickUI-Info.plist"; sourceTree = "<group>"; };
 		B2CAFFC3308E4496009214B8 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		B2CAFFDB308E4888009214B8 /* .gitignore */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
 		B2CAFFE1308E4DAA009214B8 /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
@@ -49,6 +50,7 @@
 				B2CAFFD6308E4777009214B8 /* docs */,
 				B2CAFFC3308E4496009214B8 /* README.md */,
 				000000000000000000000010 /* MagickUI */,
+				B2C1028A309067AA00BF8A25 /* MagickUI-Info.plist */,
 				000000000000000000000020 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -281,6 +283,7 @@
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "MagickUI-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = MagickUI;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -322,6 +325,7 @@
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "MagickUI-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = MagickUI;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;

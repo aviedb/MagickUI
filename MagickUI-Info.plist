@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Start as a background app (no Dock icon). The app switches to a normal app, with a Dock icon,
+	     only while a window is open or if you choose "Always" in Settings. -->
+	<key>LSUIElement</key>
+	<true/>
+
+	<!-- Open With, and dropping files or folders on the Dock icon.
+	     "Alternate" keeps MagickUI from becoming the default app for any image type. -->
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Image</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.jpeg</string>
+				<string>public.png</string>
+				<string>public.heic</string>
+				<string>public.heif</string>
+				<string>org.webmproject.webp</string>
+				<string>public.tiff</string>
+				<string>com.microsoft.bmp</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Folder</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.folder</string>
+			</array>
+		</dict>
+	</array>
+
+	<!-- Finder: right-click ▸ Services. Each NSMessage matches a method in ServicesProvider (AppContext.swift). -->
+	<key>NSServices</key>
+	<array>
+		<dict>
+			<key>NSMenuItem</key>
+			<dict>
+				<key>default</key>
+				<string>Open in MagickUI</string>
+			</dict>
+			<key>NSMessage</key>
+			<string>openService</string>
+			<key>NSPortName</key>
+			<string>$(PRODUCT_NAME)</string>
+			<key>NSSendFileTypes</key>
+			<array>
+				<string>public.image</string>
+				<string>public.folder</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSMenuItem</key>
+			<dict>
+				<key>default</key>
+				<string>Compress with MagickUI…</string>
+			</dict>
+			<key>NSMessage</key>
+			<string>compressService</string>
+			<key>NSPortName</key>
+			<string>$(PRODUCT_NAME)</string>
+			<key>NSSendFileTypes</key>
+			<array>
+				<string>public.image</string>
+				<string>public.folder</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSMenuItem</key>
+			<dict>
+				<key>default</key>
+				<string>Convert with MagickUI…</string>
+			</dict>
+			<key>NSMessage</key>
+			<string>convertService</string>
+			<key>NSPortName</key>
+			<string>$(PRODUCT_NAME)</string>
+			<key>NSSendFileTypes</key>
+			<array>
+				<string>public.image</string>
+				<string>public.folder</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSMenuItem</key>
+			<dict>
+				<key>default</key>
+				<string>Crop with MagickUI…</string>
+			</dict>
+			<key>NSMessage</key>
+			<string>cropService</string>
+			<key>NSPortName</key>
+			<string>$(PRODUCT_NAME)</string>
+			<key>NSSendFileTypes</key>
+			<array>
+				<string>public.image</string>
+				<string>public.folder</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSMenuItem</key>
+			<dict>
+				<key>default</key>
+				<string>Resize with MagickUI…</string>
+			</dict>
+			<key>NSMessage</key>
+			<string>resizeService</string>
+			<key>NSPortName</key>
+			<string>$(PRODUCT_NAME)</string>
+			<key>NSSendFileTypes</key>
+			<array>
+				<string>public.image</string>
+				<string>public.folder</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSMenuItem</key>
+			<dict>
+				<key>default</key>
+				<string>Quick compress (MagickUI)</string>
+			</dict>
+			<key>NSMessage</key>
+			<string>quickCompressService</string>
+			<key>NSPortName</key>
+			<string>$(PRODUCT_NAME)</string>
+			<key>NSSendFileTypes</key>
+			<array>
+				<string>public.image</string>
+				<string>public.folder</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSMenuItem</key>
+			<dict>
+				<key>default</key>
+				<string>Remove metadata (MagickUI)</string>
+			</dict>
+			<key>NSMessage</key>
+			<string>quickCleanService</string>
+			<key>NSPortName</key>
+			<string>$(PRODUCT_NAME)</string>
+			<key>NSSendFileTypes</key>
+			<array>
+				<string>public.image</string>
+				<string>public.folder</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>
