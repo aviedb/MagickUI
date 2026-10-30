@@ -441,6 +441,8 @@ private struct GeneralTab: View {
             Section {
                 toolRow("jpegoptim", found: ExternalTool.jpegoptim != nil)
                 toolRow("pngquant", found: ExternalTool.pngquant != nil)
+                toolRow("ffmpeg", found: ExternalTool.ffmpeg != nil)
+                toolRow("ffprobe", found: ExternalTool.ffprobe != nil)
                 LabeledContent("ImageMagick") {
                     Text(app.versionLine.isEmpty ? (app.problem ?? "Not found") : app.versionLine)
                         .font(.caption)
@@ -453,7 +455,7 @@ private struct GeneralTab: View {
             } header: {
                 Text("Tools")
             } footer: {
-                Text("Smart optimize uses jpegoptim and pngquant. Install them with:  brew install jpegoptim pngquant")
+                Text("Smart optimize for images uses jpegoptim and pngquant. Video tools use ffmpeg (which includes ffprobe). Install them with:  brew install jpegoptim pngquant ffmpeg")
             }
 
             Section {

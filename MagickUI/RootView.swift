@@ -8,6 +8,13 @@ struct RootView: View {
     @State private var isTargeted = false
     @State private var showImporter = false
 
+    /// Images, videos and folders. Some video containers (MKV, WebM…) have no system type, so they're added by extension.
+    private var importerTypes: [UTType] {
+        let extras = ["mkv", "webm", "avi", "wmv", "flv", "mpg", "mpeg", "mts", "m2ts", "ogv", "3gp"]
+            .compactMap { UTType(filenameExtension: $0) }
+        return [.image, .movie, .audiovisualContent, .folder] + extras
+    }
+
     var body: some View {
         ZStack(alignment: .top) {
             if workspace.items.isEmpty {
@@ -25,7 +32,7 @@ struct RootView: View {
             if isTargeted && !workspace.items.isEmpty {
                 ZStack {
                     Color.accentColor.opacity(0.12)
-                    Label("Drop to add more images", systemImage: "plus.circle.fill")
+                    Label("Drop to add more files", systemImage: "plus.circle.fill")
                         .font(.title2)
                         .padding(20)
                         .background(.regularMaterial)
@@ -41,7 +48,7 @@ struct RootView: View {
             isTargeted = targeted
         }
         .fileImporter(isPresented: $showImporter,
-                      allowedContentTypes: [.image, .folder],
+                      allowedContentTypes: importerTypes,
                       allowsMultipleSelection: true) { result in
             if case .success(let urls) = result { workspace.add(urls) }
         }
@@ -60,11 +67,11 @@ private struct DropZoneView: View {
             Image(systemName: "photo.on.rectangle.angled")
                 .font(.system(size: 64))
                 .foregroundStyle(isTargeted ? Color.accentColor : Color.secondary)
-            Text("Drop images here")
+            Text("Drop images or videos here")
                 .font(.largeTitle.weight(.semibold))
-            Text("JPG, PNG, HEIC, WebP, TIFF and BMP. You can also drop a folder.")
+            Text("Images: JPG, PNG, HEIC, WebP, TIFF, BMP. Videos: MP4, MOV, MKV, WebM, AVI and more. You can also drop a folder.")
                 .foregroundStyle(.secondary)
-            Button("Choose images…", action: choose)
+            Button("Choose files…", action: choose)
                 .controlSize(.large)
                 .padding(.top, 6)
             if let notice = workspace.notice {
@@ -128,7 +135,7 @@ private struct SidebarView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text(workspace.items.count == 1 ? "1 image" : "\(workspace.items.count) images")
+                Text(workspace.countText)
                     .font(.headline)
                 Spacer()
                 Button("Add…", action: addMore)
@@ -175,6 +182,7 @@ private struct ImageRow: View {
         if let size = item.pixelSize {
             parts.append("\(Int(size.width))×\(Int(size.height))")
         }
+        if let info = item.video { parts.append(formatDuration(info.duration)) }
         parts.append(formatBytes(item.byteSize))
         return parts.joined(separator: " · ")
     }
@@ -204,22 +212,33 @@ private struct ImageRow: View {
         .padding(8)
         .background(selected ? Color.accentColor.opacity(0.15) : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: 8))
+        .opacity(item.kind == workspace.activeKind ? 1 : 0.5)
         .contentShape(Rectangle())
         .onTapGesture { workspace.select(item.id) }
     }
 
-    @ViewBuilder
     private var thumbnail: some View {
-        if let image = item.thumbnail {
-            Image(nsImage: image)
-                .resizable()
-                .scaledToFill()
-                .frame(width: 48, height: 48)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-        } else {
-            RoundedRectangle(cornerRadius: 6)
-                .fill(Color.secondary.opacity(0.2))
-                .frame(width: 48, height: 48)
+        ZStack {
+            if let image = item.thumbnail {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Rectangle().fill(Color.secondary.opacity(0.2))
+                if item.kind == .video {
+                    Image(systemName: "film").foregroundStyle(.secondary)
+                }
+            }
+        }
+        .frame(width: 48, height: 48)
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay(alignment: .bottomTrailing) {
+            if item.kind == .video {
+                Image(systemName: "play.circle.fill")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.white, .black.opacity(0.55))
+                    .padding(2)
+            }
         }
     }
 
@@ -229,9 +248,16 @@ private struct ImageRow: View {
         case .idle:
             EmptyView()
         case .running(let message):
-            HStack(spacing: 6) {
-                ProgressView().controlSize(.small)
-                Text(message).font(.caption).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    if item.progress == nil { ProgressView().controlSize(.small) }
+                    Text(message).font(.caption).foregroundStyle(.secondary)
+                }
+                if let progress = item.progress {
+                    ProgressView(value: progress)
+                        .progressViewStyle(.linear)
+                        .controlSize(.small)
+                }
             }
         case .done(let output, let inBytes, let outBytes, let note):
             VStack(alignment: .leading, spacing: 2) {
@@ -265,9 +291,7 @@ private struct CompactImageStrip: View {
     let addMore: () -> Void
     @EnvironmentObject private var workspace: Workspace
 
-    private var countText: String {
-        workspace.items.count == 1 ? "1 image" : "\(workspace.items.count) images"
-    }
+    private var countText: String { workspace.countText }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -315,6 +339,7 @@ private struct CompactImageStrip: View {
     private func summary(for item: ImageItem) -> String {
         var parts = [item.name]
         if let size = item.pixelSize { parts.append("\(Int(size.width))×\(Int(size.height))") }
+        if let info = item.video { parts.append(formatDuration(info.duration)) }
         parts.append(formatBytes(item.byteSize))
         switch item.status {
         case .idle: break
@@ -355,6 +380,15 @@ private struct CompactThumb: View {
                 )
             badge
         }
+        .overlay(alignment: .topLeading) {
+            if item.kind == .video {
+                Image(systemName: "play.circle.fill")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.white, .black.opacity(0.55))
+                    .padding(3)
+            }
+        }
+        .opacity(item.kind == workspace.activeKind ? 1 : 0.5)
         .contentShape(Rectangle())
         .onTapGesture { workspace.select(item.id) }
         .contextMenu {

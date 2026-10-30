@@ -7,6 +7,46 @@ struct MainPanel: View {
     @EnvironmentObject private var workspace: Workspace
 
     var body: some View {
+        VStack(spacing: 0) {
+            if workspace.hasBothKinds {
+                KindSwitcher()
+                Divider()
+            }
+            if workspace.activeKind == .video {
+                VideoMainPanel()
+            } else {
+                ImageMainPanel()
+            }
+        }
+    }
+}
+
+/// Shown when images AND videos were dropped: choose which of them the actions apply to.
+private struct KindSwitcher: View {
+    @EnvironmentObject private var workspace: Workspace
+
+    var body: some View {
+        HStack {
+            Picker("", selection: Binding(get: { workspace.activeKind },
+                                          set: { workspace.setKind($0) })) {
+                Text("Images (\(workspace.imageCount))").tag(MediaKind.image)
+                Text("Videos (\(workspace.videoCount))").tag(MediaKind.video)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(maxWidth: 320)
+            .disabled(workspace.isRunning)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+    }
+}
+
+struct ImageMainPanel: View {
+    @EnvironmentObject private var workspace: Workspace
+
+    var body: some View {
         if let action = workspace.action {
             VStack(spacing: 0) {
                 ActionTabs(current: action)
@@ -125,7 +165,7 @@ struct ChipButton: View {
     }
 }
 
-private struct PanelContainer<Content: View>: View {
+struct PanelContainer<Content: View>: View {
     let title: String
     let subtitle: String
     @ViewBuilder let content: Content
@@ -382,14 +422,15 @@ struct RunBar: View {
     @State private var showCommand = false
 
     private var runLabel: String {
-        guard let action = workspace.action else { return "Choose an action" }
+        guard workspace.hasAction else { return "Choose an action" }
         if workspace.isRunning { return "Working…" }
         let count = workspace.runCount
-        return "\(action.verb) \(count) \(count == 1 ? "image" : "images")"
+        let noun = count == 1 ? workspace.runNounSingular : workspace.runNounPlural
+        return "\(workspace.runVerb) \(count) \(noun)"
     }
 
     private var canRun: Bool {
-        workspace.action != nil && workspace.runCount > 0 && !workspace.isRunning && app.runner != nil
+        workspace.hasAction && workspace.runCount > 0 && !workspace.isRunning && workspace.toolsReady
     }
 
     var body: some View {
@@ -457,6 +498,9 @@ struct RunBar: View {
             }
             if workspace.hasResults {
                 Button("Show in Finder") { workspace.revealResults() }
+            }
+            if workspace.isRunning && workspace.activeKind == .video {
+                Button("Cancel") { workspace.cancel() }
             }
         }
     }

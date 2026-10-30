@@ -15,7 +15,12 @@ struct ImageItem: Identifiable {
     let id = UUID()
     let url: URL
     let byteSize: Int64
-    /// Pixel size AFTER auto-orient (what magick will see when cropping).
+    var kind: MediaKind = .image
+    /// Filled in for videos once ffprobe has read them.
+    var video: VideoInfo? = nil
+    /// 0...1 while a video is being encoded.
+    var progress: Double? = nil
+    /// Pixel size AFTER auto-orient (what magick will see when cropping). For a video: its displayed size.
     var pixelSize: CGSize? = nil
     var thumbnail: NSImage? = nil
     var status: ItemStatus = .idle
