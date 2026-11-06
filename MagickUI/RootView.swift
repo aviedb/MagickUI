@@ -356,11 +356,9 @@ private struct CompactImageStrip: View {
                                      locked: workspace.isRunning)
                     }
                 }
-                .padding(.top, 8)
-                .padding(.trailing, 8)
-                .padding(.bottom, 2)
+                .padding(.vertical, 2)
             }
-            .frame(height: 70)
+            .frame(height: 68)
 
             if let item = workspace.selectedItem {
                 Text(summary(for: item))
@@ -406,44 +404,51 @@ private struct CompactThumb: View {
     let locked: Bool
     @EnvironmentObject private var workspace: Workspace
 
+    /// The whole control is 64×64. The picture sits in the bottom-left 56×56, and the remove button sits in
+    /// the top-right corner INSIDE those bounds. (A button placed partly outside its container can't be
+    /// clicked there, which is why the old corner only worked in its lower-left part.)
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            thumbnail
-                .frame(width: 56, height: 56)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .strokeBorder(selected ? Color.accentColor : Color.primary.opacity(0.12),
-                                      lineWidth: selected ? 2.5 : 1)
-                )
-            badge
-        }
-        .overlay(alignment: .topLeading) {
-            if item.kind == .video {
-                Image(systemName: "play.circle.fill")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.white, .black.opacity(0.55))
-                    .padding(3)
+        ZStack(alignment: .topTrailing) {
+            ZStack(alignment: .bottomTrailing) {
+                thumbnail
+                    .frame(width: 56, height: 56)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(selected ? Color.accentColor : Color.primary.opacity(0.12),
+                                          lineWidth: selected ? 2.5 : 1)
+                    )
+                badge
             }
-        }
-        .overlay(alignment: .topTrailing) {
+            .overlay(alignment: .topLeading) {
+                if item.kind == .video {
+                    Image(systemName: "play.circle.fill")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.white, .black.opacity(0.55))
+                        .padding(3)
+                }
+            }
+            .contentShape(Rectangle())
+            .pointerCursor()
+            .onTapGesture { workspace.select(item.id) }
+            .padding(.top, 8)
+            .padding(.trailing, 8)
+
             if !locked {
                 Button {
                     workspace.remove(item.id)
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 16))
-                        .foregroundStyle(.white, Color.black.opacity(0.7))
-                        .background(Circle().fill(Color.white.opacity(0.9)).padding(2))
+                        .font(.system(size: 17))
+                        .foregroundStyle(.white, Color.black.opacity(0.75))
+                        .background(Circle().fill(Color.white.opacity(0.95)).padding(2))
+                        .frame(width: 24, height: 24)
                 }
                 .buttonStyle(AppButtonStyle(.icon))
-                .offset(x: 7, y: -7)
                 .help("Remove")
             }
         }
-        .contentShape(Rectangle())
-        .pointerCursor()
-        .onTapGesture { workspace.select(item.id) }
+        .frame(width: 64, height: 64)
         .contextMenu {
             Button("Remove") { workspace.remove(item.id) }
                 .disabled(locked)

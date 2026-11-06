@@ -126,6 +126,7 @@ struct AppButtonStyle: ButtonStyle {
             let label = configuration.label
                 .font(.system(size: fontSize, weight: kind == .prominent ? .medium : .regular))
                 .padding(padding)
+                .frame(minWidth: kind == .icon ? 22 : nil, minHeight: kind == .icon ? 22 : nil)
 
             Group {
                 switch kind {

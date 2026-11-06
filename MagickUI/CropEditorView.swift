@@ -212,6 +212,18 @@ struct CropEditorView: View {
     @State private var dragKind: DragKind?
     @State private var startRect = CGRect.zero
     @State private var drawAnchor = CGPoint.zero
+    /// The part of the box under the mouse (nil: outside it). Used for the cursor and the highlight.
+    @State private var hoverHandle: CropGeometry.Handle?
+    @State private var isHovering = false
+
+    /// While dragging, keep showing the part being dragged. Otherwise show what's under the mouse.
+    private var activeHandle: CropGeometry.Handle? {
+        if let kind = dragKind {
+            if case .handle(let handle) = kind { return handle }
+            return nil
+        }
+        return hoverHandle
+    }
 
     private var bounds: CGRect { CGRect(origin: .zero, size: pixelSize) }
 
@@ -226,20 +238,49 @@ struct CropEditorView: View {
                     .frame(width: fit.width, height: fit.height)
                     .position(x: fit.midX, y: fit.midY)
 
-                cropOverlay(fit: fit, scale: scale)
+                cropOverlay(fit: fit, scale: scale, highlight: activeHandle)
             }
             .frame(width: geo.size.width, height: geo.size.height)
             .contentShape(Rectangle())
             .gesture(dragGesture(fit: fit, scale: scale))
+            .onContinuousHover { phase in
+                switch phase {
+                case .active(let location):
+                    isHovering = true
+                    let base = rect ?? bounds
+                    let whole = base.width >= pixelSize.width * 0.99 && base.height >= pixelSize.height * 0.99
+                    let box = viewRect(for: base, fit: fit, scale: scale)
+                    hoverHandle = hitTest(location, in: box, wholeImage: whole)
+                    if #unavailable(macOS 15.0) {
+                        cursor(for: activeHandle).set()
+                    }
+                case .ended:
+                    isHovering = false
+                    hoverHandle = nil
+                    if #unavailable(macOS 15.0) {
+                        NSCursor.arrow.set()
+                    }
+                }
+            }
+            .modifier(CropPointerModifier(hovering: isHovering || dragKind != nil,
+                                          handle: activeHandle,
+                                          dragging: dragKind != nil))
         }
         .padding(16)
     }
 
     // MARK: Layout
 
+    /// Where the picture is drawn inside the editor.
+    ///
+    /// The picture is kept `margin` points away from every side of the editor. The crop handles sit ON the
+    /// picture's edge, and a mouse press only counts inside the editor's own bounds, so without this margin
+    /// the outer half of every grab zone (the half beyond the picture's edge) would be cut off and dead.
     private func fittedRect(in size: CGSize) -> CGRect {
         guard pixelSize.width > 0, pixelSize.height > 0, size.width > 0, size.height > 0 else { return .zero }
-        let s = min(size.width / pixelSize.width, size.height / pixelSize.height)
+        let margin: CGFloat = 30
+        let available = CGSize(width: max(size.width - margin * 2, 1), height: max(size.height - margin * 2, 1))
+        let s = min(available.width / pixelSize.width, available.height / pixelSize.height)
         let w = pixelSize.width * s
         let h = pixelSize.height * s
         return CGRect(x: (size.width - w) / 2, y: (size.height - h) / 2, width: w, height: h)
@@ -252,17 +293,30 @@ struct CropEditorView: View {
                height: imageRect.height * scale)
     }
 
-    private func handlePoints(_ v: CGRect) -> [CGPoint] {
-        [CGPoint(x: v.minX, y: v.minY), CGPoint(x: v.midX, y: v.minY), CGPoint(x: v.maxX, y: v.minY),
-         CGPoint(x: v.maxX, y: v.midY),
-         CGPoint(x: v.maxX, y: v.maxY), CGPoint(x: v.midX, y: v.maxY), CGPoint(x: v.minX, y: v.maxY),
-         CGPoint(x: v.minX, y: v.midY)]
+    private func handleList(_ v: CGRect) -> [(handle: CropGeometry.Handle, point: CGPoint)] {
+        [(.topLeft, CGPoint(x: v.minX, y: v.minY)),
+         (.top, CGPoint(x: v.midX, y: v.minY)),
+         (.topRight, CGPoint(x: v.maxX, y: v.minY)),
+         (.right, CGPoint(x: v.maxX, y: v.midY)),
+         (.bottomRight, CGPoint(x: v.maxX, y: v.maxY)),
+         (.bottom, CGPoint(x: v.midX, y: v.maxY)),
+         (.bottomLeft, CGPoint(x: v.minX, y: v.maxY)),
+         (.left, CGPoint(x: v.minX, y: v.midY))]
+    }
+
+    /// Corners are squares. Edge handles are short bars along the edge they move.
+    private func handleSize(for handle: CropGeometry.Handle) -> CGSize {
+        switch handle {
+        case .top, .bottom: return CGSize(width: 22, height: 8)
+        case .left, .right: return CGSize(width: 8, height: 22)
+        default: return CGSize(width: 13, height: 13)
+        }
     }
 
     // MARK: Overlay
 
     @ViewBuilder
-    private func cropOverlay(fit: CGRect, scale: CGFloat) -> some View {
+    private func cropOverlay(fit: CGRect, scale: CGFloat, highlight: CropGeometry.Handle?) -> some View {
         let current = rect ?? bounds
         let v = viewRect(for: current, fit: fit, scale: scale)
 
@@ -291,12 +345,17 @@ struct CropEditorView: View {
                 .frame(width: v.width, height: v.height)
                 .position(x: v.midX, y: v.midY)
 
-            ForEach(Array(handlePoints(v).enumerated()), id: \.offset) { entry in
-                Rectangle()
-                    .fill(Color.white)
-                    .frame(width: 10, height: 10)
-                    .overlay(Rectangle().stroke(Color.black.opacity(0.5), lineWidth: 0.5))
-                    .position(entry.element)
+            ForEach(handleList(v), id: \.handle) { entry in
+                let lit = entry.handle == highlight
+                let size = handleSize(for: entry.handle)
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(lit ? Color.accentColor : Color.white)
+                    .frame(width: size.width, height: size.height)
+                    .overlay(RoundedRectangle(cornerRadius: 2).stroke(Color.black.opacity(0.55), lineWidth: 0.75))
+                    .scaleEffect(lit ? 1.3 : 1)
+                    .shadow(color: .black.opacity(0.3), radius: 1.5)
+                    .position(entry.point)
+                    .animation(.easeOut(duration: 0.1), value: lit)
             }
         }
         .allowsHitTesting(false)
@@ -356,35 +415,96 @@ struct CropEditorView: View {
     }
 
     /// Which part of the box is under the pointer (in view coordinates), if any.
+    ///
+    /// The grab zones are much bigger than the little handles you see: a corner reacts within about 28 points,
+    /// and an edge reacts anywhere along its whole length within about 14 points on either side. On a small
+    /// box the zones shrink so there's still some middle left for moving it.
     private func hitTest(_ p: CGPoint, in v: CGRect, wholeImage: Bool) -> CropGeometry.Handle? {
-        let grab: CGFloat = 18
-        let named: [(CropGeometry.Handle, CGPoint)] = [
+        let smallest = min(v.width, v.height)
+        let cornerGrab = min(28, max(12, smallest * 0.35))
+        let edgeGrab = min(14, max(8, smallest * 0.22))
+
+        // Corners first, so a corner is easy to grab even where two edge zones overlap.
+        let corners: [(CropGeometry.Handle, CGPoint)] = [
             (.topLeft, CGPoint(x: v.minX, y: v.minY)),
             (.topRight, CGPoint(x: v.maxX, y: v.minY)),
             (.bottomLeft, CGPoint(x: v.minX, y: v.maxY)),
-            (.bottomRight, CGPoint(x: v.maxX, y: v.maxY)),
-            (.top, CGPoint(x: v.midX, y: v.minY)),
-            (.bottom, CGPoint(x: v.midX, y: v.maxY)),
-            (.left, CGPoint(x: v.minX, y: v.midY)),
-            (.right, CGPoint(x: v.maxX, y: v.midY))
+            (.bottomRight, CGPoint(x: v.maxX, y: v.maxY))
         ]
-        for (handle, point) in named where hypot(p.x - point.x, p.y - point.y) <= grab {
-            return handle
+        var nearestCorner: (handle: CropGeometry.Handle, distance: CGFloat)?
+        for (handle, point) in corners {
+            let distance = hypot(p.x - point.x, p.y - point.y)
+            if distance <= cornerGrab, distance < (nearestCorner?.distance ?? .infinity) {
+                nearestCorner = (handle, distance)
+            }
         }
+        if let nearestCorner { return nearestCorner.handle }
 
-        // Along the edges (a thinner grab strip).
-        let strip: CGFloat = 8
-        let withinX = p.x >= v.minX && p.x <= v.maxX
-        let withinY = p.y >= v.minY && p.y <= v.maxY
-        if withinX && abs(p.y - v.minY) <= strip { return .top }
-        if withinX && abs(p.y - v.maxY) <= strip { return .bottom }
-        if withinY && abs(p.x - v.minX) <= strip { return .left }
-        if withinY && abs(p.x - v.maxX) <= strip { return .right }
+        // Edges: the distance to the edge as a whole (not just its middle point).
+        func distanceToHorizontal(y: CGFloat) -> CGFloat {
+            hypot(max(v.minX - p.x, 0, p.x - v.maxX), p.y - y)
+        }
+        func distanceToVertical(x: CGFloat) -> CGFloat {
+            hypot(p.x - x, max(v.minY - p.y, 0, p.y - v.maxY))
+        }
+        let edges: [(CropGeometry.Handle, CGFloat)] = [
+            (.top, distanceToHorizontal(y: v.minY)),
+            (.bottom, distanceToHorizontal(y: v.maxY)),
+            (.left, distanceToVertical(x: v.minX)),
+            (.right, distanceToVertical(x: v.maxX))
+        ]
+        if let nearest = edges.min(by: { $0.1 < $1.1 }), nearest.1 <= edgeGrab {
+            return nearest.0
+        }
 
         if v.contains(p) {
             // Inside an untouched full-image box, a drag should draw a new crop rather than move nothing.
             return wholeImage ? nil : .move
         }
         return nil
+    }
+
+    /// Cursor for versions of macOS before 15 (15 and later use the system resize pointers).
+    private func cursor(for handle: CropGeometry.Handle?) -> NSCursor {
+        switch handle {
+        case .move?: return .openHand
+        case .left?, .right?: return .resizeLeftRight
+        case .top?, .bottom?: return .resizeUpDown
+        default: return .crosshair
+        }
+    }
+}
+
+// MARK: - Cursor feedback (macOS 15 and later)
+
+/// Shows resize arrows over the edges and corners, a hand over the box, so it's clear what can be dragged.
+private struct CropPointerModifier: ViewModifier {
+    let hovering: Bool
+    let handle: CropGeometry.Handle?
+    let dragging: Bool
+
+    func body(content: Content) -> some View {
+        if #available(macOS 15.0, *) {
+            let style: PointerStyle? = hovering ? pointerStyle() : nil
+            content.pointerStyle(style)
+        } else {
+            content
+        }
+    }
+
+    @available(macOS 15.0, *)
+    private func pointerStyle() -> PointerStyle {
+        switch handle {
+        case .move?: return dragging ? .grabActive : .grabIdle
+        case .top?: return .frameResize(position: .top)
+        case .bottom?: return .frameResize(position: .bottom)
+        case .left?: return .frameResize(position: .leading)
+        case .right?: return .frameResize(position: .trailing)
+        case .topLeft?: return .frameResize(position: .topLeading)
+        case .topRight?: return .frameResize(position: .topTrailing)
+        case .bottomLeft?: return .frameResize(position: .bottomLeading)
+        case .bottomRight?: return .frameResize(position: .bottomTrailing)
+        case nil: return .default
+        }
     }
 }
