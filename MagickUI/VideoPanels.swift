@@ -88,6 +88,11 @@ private struct VideoActionGrid: View {
                                         .foregroundStyle(.secondary)
                                         .multilineTextAlignment(.leading)
                                         .fixedSize(horizontal: false, vertical: true)
+                                    if workspace.videoCount > 1 && (action == .trim || action == .frame) {
+                                        Text("Works on the selected video")
+                                            .font(.caption)
+                                            .foregroundStyle(Color.accentColor)
+                                    }
                                 }
                                 Spacer(minLength: 0)
                             }
@@ -98,7 +103,7 @@ private struct VideoActionGrid: View {
                             .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.primary.opacity(0.08)))
                             .contentShape(RoundedRectangle(cornerRadius: 14))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(AppButtonStyle(.card))
                     }
                 }
             }
@@ -241,7 +246,7 @@ struct VideoCompressPanel: View {
                     } label: {
                         Text(preset.0).frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(AppButtonStyle(.bordered))
                 }
             }
             .frame(maxWidth: 420)
@@ -459,9 +464,12 @@ struct VideoTrimPanel: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Text("Videos without a trim range are skipped.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            if workspace.videoCount > 1 {
+                Label("This trims the selected video. Pick another video in the list to trim it next.",
+                      systemImage: "info.circle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 }
@@ -537,10 +545,6 @@ private struct TrimEditor: View {
                     scrub = 0
                 }
                 .disabled(!workspace.isTrimModified(item))
-                if workspace.videoCount > 1 {
-                    Button("Apply to all videos") { workspace.applyTrimToAll() }
-                        .disabled(!workspace.isTrimModified(item))
-                }
             }
         }
         .onAppear { scrub = range.start }
@@ -572,6 +576,12 @@ struct VideoFramePanel: View {
         PanelContainer(title: "Export frame",
                        subtitle: "Save any moment of the video as an image, in any of the image formats.") {
             Toggle("Export several frames, spaced evenly through the video", isOn: $workspace.frameSettings.evenly)
+            if workspace.videoCount > 1 {
+                Label("This exports from the selected video. Pick another video in the list to export from it next.",
+                      systemImage: "info.circle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             if workspace.frameSettings.evenly {
                 Stepper("Number of frames: \(workspace.frameSettings.count)",

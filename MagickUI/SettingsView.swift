@@ -13,6 +13,7 @@ struct SettingsView: View {
                 .tabItem { Label("General", systemImage: "gearshape") }
         }
         .frame(minWidth: 600, minHeight: 420)
+        .buttonStyle(AppButtonStyle(.bordered))
     }
 }
 
@@ -100,7 +101,7 @@ private struct WatchedFoldersTab: View {
                 } label: {
                     Label("Add Folder…", systemImage: "plus")
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(AppButtonStyle(.prominent))
                 .controlSize(.large)
                 .padding(.top, 4)
             }
@@ -141,7 +142,7 @@ private struct SidebarButton: View {
                 .frame(width: 30, height: 24)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppButtonStyle(.plain))
         .foregroundStyle(isEnabled ? Color.primary : Color.secondary.opacity(0.45))
         .help(help)
     }

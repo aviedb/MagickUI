@@ -7,39 +7,11 @@ struct MainPanel: View {
     @EnvironmentObject private var workspace: Workspace
 
     var body: some View {
-        VStack(spacing: 0) {
-            if workspace.hasBothKinds {
-                KindSwitcher()
-                Divider()
-            }
-            if workspace.activeKind == .video {
-                VideoMainPanel()
-            } else {
-                ImageMainPanel()
-            }
+        if workspace.activeKind == .video {
+            VideoMainPanel()
+        } else {
+            ImageMainPanel()
         }
-    }
-}
-
-/// Shown when images AND videos were dropped: choose which of them the actions apply to.
-private struct KindSwitcher: View {
-    @EnvironmentObject private var workspace: Workspace
-
-    var body: some View {
-        HStack {
-            Picker("", selection: Binding(get: { workspace.activeKind },
-                                          set: { workspace.setKind($0) })) {
-                Text("Images (\(workspace.imageCount))").tag(MediaKind.image)
-                Text("Videos (\(workspace.videoCount))").tag(MediaKind.video)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(maxWidth: 320)
-            .disabled(workspace.isRunning)
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
     }
 }
 
@@ -110,7 +82,7 @@ private struct ActionGrid: View {
                             .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.primary.opacity(0.08)))
                             .contentShape(RoundedRectangle(cornerRadius: 14))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(AppButtonStyle(.card))
                     }
                 }
             }
@@ -149,10 +121,10 @@ struct ChipButton: View {
     var body: some View {
         if selected {
             Button(action: action) { content }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(AppButtonStyle(.prominent))
         } else {
             Button(action: action) { content }
-                .buttonStyle(.bordered)
+                .buttonStyle(AppButtonStyle(.bordered))
         }
     }
 
@@ -223,7 +195,7 @@ struct CompressPanel: View {
                     } label: {
                         Text(preset.0).frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(AppButtonStyle(.bordered))
                 }
             }
             .frame(maxWidth: 420)
@@ -421,13 +393,7 @@ struct RunBar: View {
     @EnvironmentObject private var workspace: Workspace
     @State private var showCommand = false
 
-    private var runLabel: String {
-        guard workspace.hasAction else { return "Choose an action" }
-        if workspace.isRunning { return "Working…" }
-        let count = workspace.runCount
-        let noun = count == 1 ? workspace.runNounSingular : workspace.runNounPlural
-        return "\(workspace.runVerb) \(count) \(noun)"
-    }
+    private var runLabel: String { workspace.runLabel }
 
     private var canRun: Bool {
         workspace.hasAction && workspace.runCount > 0 && !workspace.isRunning && workspace.toolsReady
@@ -498,6 +464,8 @@ struct RunBar: View {
             }
             if workspace.hasResults {
                 Button("Show in Finder") { workspace.revealResults() }
+                Button("Continue with results") { workspace.continueWithResults() }
+                    .help("Replace the list with the results, so you can edit them further")
             }
             if workspace.isRunning && workspace.activeKind == .video {
                 Button("Cancel") { workspace.cancel() }
@@ -511,7 +479,7 @@ struct RunBar: View {
         } label: {
             Text(runLabel).frame(minWidth: minWidth)
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(AppButtonStyle(.prominent))
         .controlSize(.large)
         .keyboardShortcut(.defaultAction)
         .disabled(!canRun)

@@ -93,11 +93,11 @@ When you change the code later, repeat the archive step and replace the app. Run
 
 ## How to use
 
-1. **Drop images or videos** (or a whole folder) onto the window, or click **Choose files…**. If you drop both kinds, a switch at the top lets you choose which the actions apply to.
+1. **Drop images or videos** (or a whole folder) onto the window, or click **Choose files…**. MagickUI works with one kind of file at a time, because images and videos use different tools. If you drop a different kind (or both), it asks which to work with.
 2. **Pick an action.** You can switch actions at any time from the tabs at the top.
 3. **Adjust the options** (see below).
 4. Optionally choose where to save with **Save to → Choose…**. By default, files go next to the originals.
-5. Click the **Run** button. Each image shows its result, with a **Reveal in Finder** link.
+5. Click the **Run** button. Each file shows its result, with a **Reveal in Finder** link. Remove a file from the list with the **×** next to it, and use **Continue with results** to edit the results further, for example convert and then crop.
 
 Use **Show command** to see the exact `magick` command that will run, which is handy for learning ImageMagick.
 
@@ -143,6 +143,8 @@ Resize accepts pixels or a percentage, and can keep the aspect ratio and avoid e
 
 Drop a video and the screen shows the video actions. Videos are processed by `ffmpeg`, and each one shows a live progress bar. **Cancel** stops the video that is encoding and the rest of the batch.
 
+You can drop several videos. **Smart optimize**, **Compress to size**, **Downscale** and **Convert format** run on all of them with the same settings. **Trim** and **Export frame** are edits to a single clip, so they work on the **selected** video, one at a time.
+
 ### Smart optimize (video)
 
 Pick **H.264** (plays everywhere) or **HEVC** (usually smaller, but not every device plays it), a quality (High, Balanced or Smaller file) and an encoding speed. The resolution is never changed. AAC audio is copied untouched, the result is an MP4, and a video that wouldn't get smaller is left alone. 10-bit HEVC sources stay 10-bit, so HDR phone videos don't turn flat. Converting an HDR video to H.264 makes it SDR, and the result tells you so.
@@ -161,7 +163,7 @@ Video: **MP4 (H.264)**, **MP4 (HEVC)**, **MOV**, **MKV**, **WebM**, **AVI**. Ani
 
 ### Trim
 
-Select a video, drag the start and end handles (or type exact seconds), and watch the preview. The preview shows the frame at the handle you moved, and it works for any format. **Precise** re-encodes at high quality and cuts exactly where you chose. **Fast** copies the streams, which is instant and lossless, but can only cut on keyframes, so the start may be a moment earlier. **Apply to all videos** copies the range to every video, and videos without a trim range are skipped.
+Select a video, drag the start and end handles (or type exact seconds), and watch the preview. The preview shows the frame at the handle you moved, and it works for any format. **Precise** re-encodes at high quality and cuts exactly where you chose. **Fast** copies the streams, which is instant and lossless, but can only cut on keyframes, so the start may be a moment earlier. Each video remembers its own range while you switch between them.
 
 ### Export frame
 

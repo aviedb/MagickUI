@@ -259,13 +259,14 @@ private struct PreviewCard: View {
                         .foregroundStyle(.secondary)
                         .background(Circle().fill(.regularMaterial))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppButtonStyle(.icon))
                 .padding(6)
                 .help("Dismiss")
             }
         }
         .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .onHover { hovering = $0 }
+        .pointerCursor(item.reveal != nil)
         .onTapGesture(perform: onOpen)
     }
 

@@ -52,6 +52,37 @@ struct RootView: View {
                       allowsMultipleSelection: true) { result in
             if case .success(let urls) = result { workspace.add(urls) }
         }
+        .buttonStyle(AppButtonStyle(.bordered))
+        .confirmationDialog(
+            "Images and videos can't be edited together",
+            isPresented: Binding(get: { workspace.pendingDrop != nil },
+                                 set: { if !$0 { workspace.pendingDrop = nil } }),
+            titleVisibility: .visible,
+            presenting: workspace.pendingDrop
+        ) { pending in
+            if !pending.images.isEmpty {
+                Button(choiceTitle(for: .image, count: pending.images.count)) {
+                    workspace.resolveDrop(pending, choose: .image)
+                }
+            }
+            if !pending.videos.isEmpty {
+                Button(choiceTitle(for: .video, count: pending.videos.count)) {
+                    workspace.resolveDrop(pending, choose: .video)
+                }
+            }
+            Button("Cancel", role: .cancel) { workspace.pendingDrop = nil }
+        } message: { _ in
+            Text("They use different tools, so pick which kind of file to work with.")
+        }
+    }
+
+    /// "Add 2 videos", or "Switch to 2 videos (replaces the current files)".
+    private func choiceTitle(for kind: MediaKind, count: Int) -> String {
+        let noun = kind == .image ? (count == 1 ? "image" : "images") : (count == 1 ? "video" : "videos")
+        guard let current = workspace.items.first?.kind else { return "Work with \(count) \(noun)" }
+        return current == kind
+            ? "Add \(count) \(noun)"
+            : "Switch to \(count) \(noun) (replaces the current files)"
     }
 }
 
@@ -176,6 +207,7 @@ private struct ImageRow: View {
     let selected: Bool
     let locked: Bool
     @EnvironmentObject private var workspace: Workspace
+    @State private var hovering = false
 
     private var subtitle: String {
         var parts: [String] = []
@@ -203,17 +235,21 @@ private struct ImageRow: View {
             Button {
                 workspace.remove(item.id)
             } label: {
-                Image(systemName: "xmark.circle.fill")
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .bold))
+                    .frame(width: 22, height: 22)
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(AppButtonStyle(.icon))
             .disabled(locked)
             .help("Remove from the list")
         }
         .padding(8)
-        .background(selected ? Color.accentColor.opacity(0.15) : Color.clear)
+        .background(selected ? Color.accentColor.opacity(0.15)
+                    : (hovering ? Color.primary.opacity(0.06) : Color.clear))
         .clipShape(RoundedRectangle(cornerRadius: 8))
-        .opacity(item.kind == workspace.activeKind ? 1 : 0.5)
         .contentShape(Rectangle())
+        .onHover { hovering = $0 }
+        .pointerCursor()
         .onTapGesture { workspace.select(item.id) }
     }
 
@@ -267,7 +303,7 @@ private struct ImageRow: View {
                     .foregroundStyle(.green)
                     .lineLimit(2)
                 Button("Reveal in Finder") { workspace.reveal(output) }
-                    .buttonStyle(.link)
+                    .buttonStyle(AppButtonStyle(.link))
                     .font(.caption)
             }
         case .skipped(let message):
@@ -313,16 +349,18 @@ private struct CompactImageStrip: View {
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 8) {
+                LazyHStack(spacing: 10) {
                     ForEach(workspace.items) { item in
                         CompactThumb(item: item,
                                      selected: item.id == workspace.selectedID,
                                      locked: workspace.isRunning)
                     }
                 }
-                .padding(.vertical, 2)
+                .padding(.top, 8)
+                .padding(.trailing, 8)
+                .padding(.bottom, 2)
             }
-            .frame(height: 60)
+            .frame(height: 70)
 
             if let item = workspace.selectedItem {
                 Text(summary(for: item))
@@ -388,8 +426,23 @@ private struct CompactThumb: View {
                     .padding(3)
             }
         }
-        .opacity(item.kind == workspace.activeKind ? 1 : 0.5)
+        .overlay(alignment: .topTrailing) {
+            if !locked {
+                Button {
+                    workspace.remove(item.id)
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(.white, Color.black.opacity(0.7))
+                        .background(Circle().fill(Color.white.opacity(0.9)).padding(2))
+                }
+                .buttonStyle(AppButtonStyle(.icon))
+                .offset(x: 7, y: -7)
+                .help("Remove")
+            }
+        }
         .contentShape(Rectangle())
+        .pointerCursor()
         .onTapGesture { workspace.select(item.id) }
         .contextMenu {
             Button("Remove") { workspace.remove(item.id) }

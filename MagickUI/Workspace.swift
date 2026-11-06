@@ -2,6 +2,14 @@ import Foundation
 import AppKit
 import Combine
 
+/// Files that were dropped while they don't fit what's already in the window (the other kind, or both kinds).
+/// The user is asked which kind to work with.
+struct PendingDrop: Identifiable {
+    let id = UUID()
+    let images: [URL]
+    let videos: [URL]
+}
+
 /// State of the main window: the dropped files (images and videos), the chosen action and its settings.
 /// The actual work lives in `ImageProcessor` and `VideoProcessor`.
 @MainActor
@@ -38,6 +46,7 @@ final class Workspace: ObservableObject {
     @Published var trimRanges: [UUID: TimeRange] = [:]
     @Published var frameTimes: [UUID: Double] = [:]
 
+    @Published var pendingDrop: PendingDrop?
     @Published var outputFolder: URL?
     @Published var isRunning = false
     @Published var notice: String?
@@ -62,7 +71,6 @@ final class Workspace: ObservableObject {
 
     var hasImages: Bool { items.contains { $0.kind == .image } }
     var hasVideos: Bool { items.contains { $0.kind == .video } }
-    var hasBothKinds: Bool { hasImages && hasVideos }
     var imageCount: Int { items.filter { $0.kind == .image }.count }
     var videoCount: Int { items.filter { $0.kind == .video }.count }
 
@@ -119,14 +127,41 @@ final class Workspace: ObservableObject {
         return range.start > 0.01 || range.end < duration - 0.01
     }
 
+    /// Trim and Export frame are edits to ONE clip, so they work on the selected video only.
+    var videoActionIsSingle: Bool {
+        videoAction == .trim || videoAction == .frame
+    }
+
     /// How many files the current action would touch.
     var runCount: Int {
         if activeKind == .video {
-            if videoAction == .trim { return items.filter { $0.kind == .video && isTrimModified($0) }.count }
-            return videoCount
+            switch videoAction {
+            case .trim?:
+                if let item = selectedItem, item.kind == .video, isTrimModified(item) { return 1 }
+                return 0
+            case .frame?:
+                return selectedItem?.kind == .video ? 1 : 0
+            default:
+                return videoCount
+            }
         }
         if action == .crop { return items.filter { $0.kind == .image && cropRects[$0.id] != nil }.count }
         return imageCount
+    }
+
+    /// The text on the Run button.
+    var runLabel: String {
+        guard hasAction else { return "Choose an action" }
+        if isRunning { return "Working…" }
+        if activeKind == .video {
+            switch videoAction {
+            case .trim?: return "Trim this video"
+            case .frame?: return frameSettings.evenly ? "Export \(frameSettings.count) frames" : "Export this frame"
+            default: break
+            }
+        }
+        let count = runCount
+        return "\(runVerb) \(count) \(count == 1 ? runNounSingular : runNounPlural)"
     }
 
     var hasResults: Bool {
@@ -165,43 +200,99 @@ final class Workspace: ObservableObject {
 
     // MARK: - Adding / removing files
 
+    /// MagickUI works with ONE kind of file at a time, because images and videos use different tools.
+    /// Files of the kind already in the list are added. If a different kind (or both) arrives, we ask.
     func add(_ urls: [URL]) {
         guard !isRunning else { return }
         let collected = MediaFiles.collect(from: urls)
         let existing = Set(items.map { $0.url })
-
-        var newItems: [ImageItem] = []
-        for url in collected.images where !existing.contains(url) {
-            newItems.append(ImageItem(url: url, byteSize: fileSize(url), kind: .image))
-        }
-        for url in collected.videos where !existing.contains(url) {
-            newItems.append(ImageItem(url: url, byteSize: fileSize(url), kind: .video))
-        }
+        let images = collected.images.filter { !existing.contains($0) }
+        let videos = collected.videos.filter { !existing.contains($0) }
 
         notice = collected.skipped > 0
             ? "\(collected.skipped) unsupported file\(collected.skipped == 1 ? "" : "s") skipped."
             : nil
-        guard !newItems.isEmpty else { return }
+        guard !(images.isEmpty && videos.isEmpty) else { return }
+
+        if let current = items.first?.kind {
+            let other = current == .image ? videos : images
+            if other.isEmpty {
+                append(current == .image ? images : videos, kind: current)
+            } else {
+                pendingDrop = PendingDrop(images: images, videos: videos)
+            }
+            return
+        }
+
+        if !images.isEmpty && !videos.isEmpty {
+            pendingDrop = PendingDrop(images: images, videos: videos)
+        } else if !images.isEmpty {
+            append(images, kind: .image)
+        } else {
+            append(videos, kind: .video)
+        }
+    }
+
+    private func append(_ urls: [URL], kind: MediaKind) {
+        guard !urls.isEmpty else { return }
+        let newItems = urls.map { ImageItem(url: $0, byteSize: fileSize($0), kind: kind) }
 
         for i in items.indices { items[i].status = .idle }
         items.append(contentsOf: newItems)
-
-        // Show the actions for what was just dropped. If both kinds arrive together, images come first.
-        let newKinds = Set(newItems.map { $0.kind })
-        if newKinds.count == 1, let kind = newKinds.first {
-            activeKind = kind
-        } else if !items.contains(where: { $0.kind == activeKind }) {
-            activeKind = items.first?.kind ?? .image
-        }
-        if selectedItem == nil || selectedItem?.kind != activeKind {
-            selectedID = newItems.first(where: { $0.kind == activeKind })?.id ?? items.first?.id
-        }
+        activeKind = kind
+        if selectedItem == nil { selectedID = items.first?.id }
 
         let ids = newItems.map { $0.id }
         Task {
             await loadFormatsIfNeeded()
             await loadEncodersIfNeeded()
             await loadMetadata(for: ids)
+        }
+    }
+
+    /// The user's answer to the "images or videos?" question.
+    func resolveDrop(_ pending: PendingDrop, choose kind: MediaKind) {
+        pendingDrop = nil
+        let urls = kind == .image ? pending.images : pending.videos
+        guard !urls.isEmpty, !isRunning else { return }
+        if items.first?.kind == kind {
+            append(urls, kind: kind)
+        } else {
+            replaceAll(with: urls, kind: kind)
+        }
+    }
+
+    private func replaceAll(with urls: [URL], kind: MediaKind) {
+        items = []
+        selectedID = nil
+        cropRects = [:]
+        trimRanges = [:]
+        frameTimes = [:]
+        cropPreview = nil
+        action = nil
+        videoAction = nil
+        append(urls, kind: kind)
+    }
+
+    /// Where each finished file went, so the next edit can start from the results.
+    var resultOutputs: [URL] {
+        let outputs: [URL?] = items.map { item in
+            if case .done(let output, _, _, _) = item.status { return output }
+            return nil
+        }
+        return outputs.compactMap { $0 }
+    }
+
+    /// Replaces the list with the results, so they can be edited further (for example convert, then crop).
+    func continueWithResults() {
+        guard !isRunning else { return }
+        let collected = MediaFiles.collect(from: resultOutputs)
+        if !collected.videos.isEmpty {
+            replaceAll(with: collected.videos, kind: .video)
+        } else if !collected.images.isEmpty {
+            replaceAll(with: collected.images, kind: .image)
+        } else {
+            notice = "These results (such as GIF or audio files) can't be edited further here."
         }
     }
 
@@ -244,15 +335,6 @@ final class Workspace: ObservableObject {
             activeKind = item.kind
         }
         if action == .crop { refreshCropPreview() }
-    }
-
-    func setKind(_ kind: MediaKind) {
-        guard kind != activeKind else { return }
-        activeKind = kind
-        if selectedItem?.kind != kind {
-            selectedID = items.first(where: { $0.kind == kind })?.id
-        }
-        if kind == .image, action == .crop { refreshCropPreview() }
     }
 
     func choose(_ newAction: ImageAction) {
@@ -461,16 +543,6 @@ final class Workspace: ObservableObject {
         trimRanges[id] = nil
     }
 
-    /// Copies the selected video's start and end to every video (clamped to each one's length).
-    func applyTrimToAll() {
-        guard let item = selectedItem, item.kind == .video else { return }
-        let range = trimRange(for: item)
-        for other in items where other.kind == .video {
-            guard let duration = other.video?.duration, range.start < duration - 0.1 else { continue }
-            trimRanges[other.id] = TimeRange(start: range.start, end: min(range.end, duration))
-        }
-    }
-
     func frameTime(for item: ImageItem) -> Double {
         frameTimes[item.id] ?? min(1, (item.video?.duration ?? 0) * 0.1)
     }
@@ -538,7 +610,11 @@ final class Workspace: ObservableObject {
 
     private func runVideos() async {
         guard let videoAction, let ffmpeg = ExternalTool.ffmpeg, !isRunning else { return }
-        let indices = items.indices.filter { items[$0].kind == .video }
+        var indices = items.indices.filter { items[$0].kind == .video }
+        if videoActionIsSingle {
+            // One clip at a time: only the selected video.
+            indices = indices.filter { items[$0].id == selectedID }
+        }
         guard !indices.isEmpty else { return }
 
         isRunning = true
