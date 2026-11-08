@@ -123,7 +123,7 @@ private struct VideoActionTabs: View {
                     ChipButton(label: action.title, symbol: action.symbol, selected: action == current) {
                         workspace.chooseVideo(action)
                     }
-                    .disabled(workspace.isRunning)
+                    .disabled(workspace.isRunning || workspace.hasPendingResults)
                 }
             }
             .padding(12)
@@ -623,7 +623,7 @@ struct VideoFramePanel: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                Text("Frames are saved next to the video. PNG is lossless. Other formats are made with ImageMagick, so every format from the image tools works.")
+                Text("After exporting you can copy the frames, or save them next to the video. PNG is lossless. Other formats are made with ImageMagick, so every format from the image tools works.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

@@ -102,7 +102,7 @@ private struct ActionTabs: View {
                     ChipButton(label: action.title, symbol: action.symbol, selected: action == current) {
                         workspace.choose(action)
                     }
-                    .disabled(workspace.isRunning)
+                    .disabled(workspace.isRunning || workspace.hasPendingResults)
                 }
             }
             .padding(12)
@@ -385,8 +385,10 @@ struct MetadataPanel: View {
     }
 }
 
-// MARK: - Bottom bar: where to save + Run
+// MARK: - Bottom bar: Run, then copy or save
 
+/// Before the action runs, this bar only has the Run button. Once the results are ready it offers
+/// "Copy to clipboard" and "Save" (next to the originals, unless another folder is chosen).
 /// Uses one row when there is room, and two rows when the window is narrow.
 struct RunBar: View {
     @EnvironmentObject private var app: AppState
@@ -400,13 +402,46 @@ struct RunBar: View {
     }
 
     var body: some View {
+        Group {
+            if workspace.hasPendingResults {
+                resultsBar
+            } else {
+                runBar
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+    }
+
+    /// Before the action runs: just the Run button, plus the helpers that belong to it.
+    private var runBar: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) {
+                extraButtons
+                Spacer(minLength: 8)
+                runButton(minWidth: 170)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                extraButtons
+                HStack(spacing: 8) {
+                    Spacer(minLength: 4)
+                    runButton(minWidth: 140)
+                }
+            }
+        }
+    }
+
+    /// After the action ran: copy the results, or save them to the destination.
+    private var resultsBar: some View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 12) {
                 saveToInfo(maxWidth: 240)
                 folderButtons
                 Spacer(minLength: 8)
-                extraButtons
-                runButton(minWidth: 170)
+                discardButton
+                copyButton
+                saveButton(minWidth: 90)
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -415,14 +450,42 @@ struct RunBar: View {
                     folderButtons
                 }
                 HStack(spacing: 8) {
-                    extraButtons
+                    discardButton
                     Spacer(minLength: 4)
-                    runButton(minWidth: 140)
+                    copyButton
+                    saveButton(minWidth: 60)
                 }
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+    }
+
+    private var copyButton: some View {
+        Button {
+            workspace.copyResultsToClipboard()
+        } label: {
+            Label("Copy to clipboard", systemImage: "doc.on.doc")
+        }
+        .controlSize(.large)
+        .help("Copy the result, so you can paste it into another app")
+    }
+
+    private func saveButton(minWidth: CGFloat) -> some View {
+        Button {
+            workspace.saveResults()
+        } label: {
+            Text("Save").frame(minWidth: minWidth)
+        }
+        .buttonStyle(AppButtonStyle(.prominent))
+        .controlSize(.large)
+        .keyboardShortcut(.defaultAction)
+        .help(workspace.outputFolder == nil
+              ? "Save next to the original files"
+              : "Save to the chosen folder")
+    }
+
+    private var discardButton: some View {
+        Button("Discard") { workspace.discardResults() }
+            .help("Throw the result away and go back, for example to change a setting")
     }
 
     private func saveToInfo(maxWidth: CGFloat) -> some View {

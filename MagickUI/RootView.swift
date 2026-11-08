@@ -41,6 +41,16 @@ struct RootView: View {
                 .allowsHitTesting(false)
             }
         }
+        .overlay(alignment: .bottom) {
+            // Sits just above the bottom bar.
+            if let toast = workspace.toast {
+                ToastView(toast: toast)
+                    .padding(.bottom, 84)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .allowsHitTesting(false)
+            }
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: workspace.toast)
         .dropDestination(for: URL.self) { urls, _ in
             workspace.add(urls)
             return !urls.isEmpty
@@ -302,9 +312,15 @@ private struct ImageRow: View {
                     .font(.caption)
                     .foregroundStyle(.green)
                     .lineLimit(2)
-                Button("Reveal in Finder") { workspace.reveal(output) }
-                    .buttonStyle(AppButtonStyle(.link))
-                    .font(.caption)
+                if workspace.isStaged(item.id) {
+                    Text("Not saved yet")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Button("Reveal in Finder") { workspace.reveal(output) }
+                        .buttonStyle(AppButtonStyle(.link))
+                        .font(.caption)
+                }
             }
         case .skipped(let message):
             Text(message)

@@ -94,10 +94,11 @@ When you change the code later, repeat the archive step and replace the app. Run
 ## How to use
 
 1. **Drop images or videos** (or a whole folder) onto the window, or click **Choose files…**. MagickUI works with one kind of file at a time, because images and videos use different tools. If you drop a different kind (or both), it asks which to work with.
-2. **Pick an action.** You can switch actions at any time from the tabs at the top.
+2. **Pick an action.** You can switch actions from the tabs at the top, except while a result is waiting to be copied or saved.
 3. **Adjust the options** (see below).
-4. Optionally choose where to save with **Save to → Choose…**. By default, files go next to the originals.
-5. Click the **Run** button. Each file shows its result, with a **Reveal in Finder** link. Remove a file from the list with the **×** next to it, and use **Continue with results** to edit the results further, for example convert and then crop.
+4. Click the **Run** button (for example **Crop 3 images**). Nothing is written next to your files yet. The result waits until you decide what to do with it.
+5. When the result is ready, choose **Copy to clipboard** to paste it straight into another app, or **Save** to write it to disk. Files are saved next to the originals by default, and **Choose…** next to **Save to** picks another folder. A small message confirms it ("Copied to clipboard" or "Saved to …"). **Discard** throws the result away, so you can change a setting and run again.
+6. After saving, each file shows a **Reveal in Finder** link. Remove a file from the list with the **×** next to it, and use **Continue with results** to edit the results further, for example convert and then crop.
 
 Use **Show command** to see the exact `magick` command that will run, which is handy for learning ImageMagick.
 
@@ -167,7 +168,7 @@ Select a video, drag the start and end handles (or type exact seconds), and watc
 
 ### Export frame
 
-Select a video, move the slider (or step by a frame or a second), and pick any image format: PNG, JPG, WebP, HEIC, AVIF, TIFF and any other format your ImageMagick can write. Or export several frames spaced evenly through the video. Frames are saved next to the video.
+Select a video, move the slider (or step by a frame or a second), and pick any image format: PNG, JPG, WebP, HEIC, AVIF, TIFF and any other format your ImageMagick can write. Or export several frames spaced evenly through the video. Frames can be copied to the clipboard or saved next to the video.
 
 ## Watched folders
 
@@ -237,7 +238,7 @@ Turn on **Launch MagickUI at login** in **Settings ▸ General** to start watchi
 
 ## Where files are saved
 
-- From the main window, output goes next to each original, or in the folder you choose. Originals are never overwritten.
+- From the main window, results are written when you click **Save**: next to each original, or in the folder you choose. **Copy to clipboard** doesn't save anything. Originals are never overwritten.
 - Name clashes get a number: `photo 2.jpg`, `photo 3.jpg`.
 - Files get a suffix by action: `_optimized`, `_compressed`, `_cropped`, `_resized`, `_rotated`, `_clean`. Convert keeps the original name with a new extension (or `_converted` if the format stays the same).
 - Videos get `_optimized`, `_compressed`, `_720p` (or `_30fps`), `_trimmed`, and `_frame_12-50s` (the time of the frame). Convert gives the video a new extension.

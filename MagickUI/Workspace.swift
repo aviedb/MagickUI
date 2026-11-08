@@ -47,16 +47,32 @@ final class Workspace: ObservableObject {
     @Published var frameTimes: [UUID: Double] = [:]
 
     @Published var pendingDrop: PendingDrop?
+    /// Where "Save" puts the results. nil means next to each original.
     @Published var outputFolder: URL?
     @Published var isRunning = false
+    /// Finished results wait in a temporary folder (one per file) until the user copies or saves them.
+    @Published private(set) var stagedDirs: [UUID: URL] = [:]
+    /// The small "Copied to clipboard" / "Saved to …" message.
+    @Published var toast: Toast?
     @Published var notice: String?
     @Published private(set) var writableFormats: Set<String> = []
     @Published private(set) var ffmpegEncoders: Set<String> = []
 
     private var ffmpegRunner: FFmpegRunner?
 
+    /// Every run writes its results under here, in its own folder.
+    private static let stagingRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("MagickTools-results", isDirectory: true)
+    private var stagingRun: URL?
+    /// The run folder the clipboard was last filled from, and the clipboard's change count right after that.
+    /// While the count is unchanged, the clipboard still points at files in that folder.
+    private var clipboardRun: URL?
+    private var clipboardChangeCount: Int?
+
     init(app: AppState) {
         self.app = app
+        // Results from an earlier launch that were never saved.
+        try? FileManager.default.removeItem(at: Self.stagingRoot)
     }
 
     // MARK: - Derived
@@ -172,6 +188,20 @@ final class Workspace: ObservableObject {
         }
     }
 
+    /// How many results are finished but not yet copied or saved.
+    var pendingCount: Int {
+        items.filter { item in
+            guard item.kind == activeKind, stagedDirs[item.id] != nil else { return false }
+            if case .done = item.status { return true }
+            return false
+        }.count
+    }
+
+    var hasPendingResults: Bool { pendingCount > 0 }
+
+    /// True while this item's result is still in the temporary folder (not saved anywhere yet).
+    func isStaged(_ id: UUID) -> Bool { stagedDirs[id] != nil }
+
     private var processorSettings: ProcessorSettings {
         var settings = ProcessorSettings()
         settings.optimize = optimize
@@ -237,6 +267,7 @@ final class Workspace: ObservableObject {
         guard !urls.isEmpty else { return }
         let newItems = urls.map { ImageItem(url: $0, byteSize: fileSize($0), kind: kind) }
 
+        discardStaging()
         for i in items.indices { items[i].status = .idle }
         items.append(contentsOf: newItems)
         activeKind = kind
@@ -263,6 +294,7 @@ final class Workspace: ObservableObject {
     }
 
     private func replaceAll(with urls: [URL], kind: MediaKind) {
+        discardStaging()
         items = []
         selectedID = nil
         cropRects = [:]
@@ -298,6 +330,7 @@ final class Workspace: ObservableObject {
 
     func remove(_ id: UUID) {
         guard !isRunning else { return }
+        discardStaging()
         items.removeAll { $0.id == id }
         cropRects[id] = nil
         trimRanges[id] = nil
@@ -317,6 +350,7 @@ final class Workspace: ObservableObject {
 
     func clearAll() {
         guard !isRunning else { return }
+        discardStaging()
         items = []
         selectedID = nil
         cropRects = [:]
@@ -562,6 +596,147 @@ final class Workspace: ObservableObject {
         }
     }
 
+    // MARK: - Results: copy or save
+
+    /// Results are first written to a temporary folder. When the user picks "Copy to clipboard" or "Save",
+    /// they are copied or moved from there. So nothing lands next to the originals until the user says so.
+    private func beginStagingRun() -> URL {
+        let folder = Self.stagingRoot.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        stagingRun = folder
+        return folder
+    }
+
+    private func stagingFolder(for id: UUID, in runFolder: URL) throws -> URL {
+        let folder = runFolder.appendingPathComponent(id.uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        return folder
+    }
+
+    /// Every file an item produced (exporting several frames makes several), with the main one first.
+    private func stagedFiles(in folder: URL, main: URL) -> [URL] {
+        var files = ((try? FileManager.default.contentsOfDirectory(at: folder,
+                                                                   includingPropertiesForKeys: nil,
+                                                                   options: [.skipsHiddenFiles])) ?? [])
+            .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+        if let position = files.firstIndex(where: { $0.lastPathComponent == main.lastPathComponent }), position > 0 {
+            files.insert(files.remove(at: position), at: 0)
+        }
+        return files
+    }
+
+    /// The clipboard still points at files in the current run's folder, so they have to stay where they are.
+    private var clipboardHoldsStagedResults: Bool {
+        guard let current = stagingRun, current == clipboardRun, let count = clipboardChangeCount else { return false }
+        return count == NSPasteboard.general.changeCount
+    }
+
+    func copyResultsToClipboard() {
+        var files: [URL] = []
+        for item in items where item.kind == activeKind {
+            guard let folder = stagedDirs[item.id], case .done(let output, _, _, _) = item.status else { continue }
+            files += stagedFiles(in: folder, main: output)
+        }
+        guard !files.isEmpty else { return }
+
+        if ResultClipboard.copy(files) {
+            clipboardRun = stagingRun
+            clipboardChangeCount = NSPasteboard.general.changeCount
+            showToast("Copied to clipboard")
+        } else {
+            showToast("Couldn't copy to the clipboard", symbol: "exclamationmark.triangle.fill")
+        }
+    }
+
+    /// Puts the results in their final place: the chosen folder, or next to each original.
+    func saveResults() {
+        guard !isRunning, hasPendingResults else { return }
+        let fm = FileManager.default
+        // If the clipboard still holds the temporary files, copy instead of move, so a later paste still works.
+        let keepStaged = clipboardHoldsStagedResults
+        var reserved = Set<String>()
+        var savedFolders = Set<String>()
+        var lastFolder: URL?
+        var failed = 0
+
+        for index in items.indices {
+            let item = items[index]
+            guard item.kind == activeKind,
+                  let staged = stagedDirs[item.id],
+                  case .done(let output, let inBytes, let outBytes, let note) = item.status else { continue }
+
+            let destination = outputFolder ?? item.url.deletingLastPathComponent()
+            do {
+                try fm.createDirectory(at: destination, withIntermediateDirectories: true)
+                var firstFinal: URL?
+                for file in stagedFiles(in: staged, main: output) {
+                    let final = OutputNaming.uniqueURL(directory: destination,
+                                                       stem: file.deletingPathExtension().lastPathComponent,
+                                                       ext: file.pathExtension,
+                                                       reserved: &reserved)
+                    if keepStaged {
+                        try fm.copyItem(at: file, to: final)
+                    } else {
+                        try fm.moveItem(at: file, to: final)
+                    }
+                    if firstFinal == nil { firstFinal = final }
+                }
+                if let firstFinal {
+                    items[index].status = .done(output: firstFinal, inBytes: inBytes, outBytes: outBytes, note: note)
+                    lastFolder = firstFinal.deletingLastPathComponent()
+                    savedFolders.insert(firstFinal.deletingLastPathComponent().path)
+                }
+                stagedDirs[item.id] = nil
+            } catch {
+                failed += 1
+            }
+        }
+
+        if !keepStaged, stagedDirs.isEmpty, let current = stagingRun {
+            try? fm.removeItem(at: current)
+            stagingRun = nil
+        }
+
+        if failed > 0 {
+            showToast("Couldn't save some results", symbol: "exclamationmark.triangle.fill")
+        } else if savedFolders.count == 1, let folder = lastFolder {
+            showToast("Saved to \(fm.displayName(atPath: folder.path))")
+        } else if !savedFolders.isEmpty {
+            showToast("Saved next to the originals")
+        }
+    }
+
+    /// Throws the waiting results away, so the action can be run again.
+    func discardResults() {
+        guard !isRunning else { return }
+        discardStaging()
+    }
+
+    private func discardStaging() {
+        let waiting = Set(stagedDirs.keys)
+        stagedDirs = [:]
+        for i in items.indices where waiting.contains(items[i].id) { items[i].status = .idle }
+
+        if let current = stagingRun {
+            if !clipboardHoldsStagedResults { try? FileManager.default.removeItem(at: current) }
+            stagingRun = nil
+        }
+        // An older run that was only kept for the clipboard can go once the clipboard has moved on.
+        if let held = clipboardRun, held != stagingRun, clipboardChangeCount != NSPasteboard.general.changeCount {
+            try? FileManager.default.removeItem(at: held)
+            clipboardRun = nil
+            clipboardChangeCount = nil
+        }
+    }
+
+    func showToast(_ message: String, symbol: String = "checkmark.circle.fill") {
+        let newToast = Toast(message: message, symbol: symbol)
+        toast = newToast
+        Task {
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            if toast?.id == newToast.id { toast = nil }
+        }
+    }
+
     // MARK: - Running
 
     func run() async {
@@ -583,7 +758,9 @@ final class Workspace: ObservableObject {
         guard !indices.isEmpty else { return }
 
         isRunning = true
+        discardStaging()
         for i in indices { items[i].status = .idle }
+        let runFolder = beginStagingRun()
 
         let processor = ImageProcessor(runner: runner, writableFormats: writableFormats)
         let settings = processorSettings
@@ -594,11 +771,15 @@ final class Workspace: ObservableObject {
             items[index].status = .running(action == .compress ? "Finding the best fit…"
                                            : (action == .optimize ? "Optimizing…" : "Working…"))
             do {
-                items[index].status = try await processor.process(job: job(for: item),
-                                                                  action: action,
-                                                                  settings: settings,
-                                                                  outputDirectory: outputFolder,
-                                                                  reserved: &reserved)
+                // The result waits in a temporary folder until the user copies or saves it.
+                let folder = try stagingFolder(for: item.id, in: runFolder)
+                let status = try await processor.process(job: job(for: item),
+                                                         action: action,
+                                                         settings: settings,
+                                                         outputDirectory: folder,
+                                                         reserved: &reserved)
+                items[index].status = status
+                if case .done = status { stagedDirs[item.id] = folder }
             } catch let skip as ItemSkip {
                 items[index].status = .skipped(skip.message)
             } catch {
@@ -618,10 +799,12 @@ final class Workspace: ObservableObject {
         guard !indices.isEmpty else { return }
 
         isRunning = true
+        discardStaging()
         for i in indices {
             items[i].status = .idle
             items[i].progress = nil
         }
+        let runFolder = beginStagingRun()
         await loadEncodersIfNeeded()
 
         let runner = FFmpegRunner(executable: ffmpeg)
@@ -660,16 +843,19 @@ final class Workspace: ObservableObject {
                                trim: trimRanges[id],
                                frameTime: frameTime(for: item))
             do {
+                // The result waits in a temporary folder until the user copies or saves it.
+                let folder = try stagingFolder(for: id, in: runFolder)
                 let status = try await processor.process(
                     job: job,
                     action: videoAction,
                     settings: settings,
-                    outputDirectory: outputFolder,
+                    outputDirectory: folder,
                     reserved: &reserved,
                     progress: { fraction in
                         Task { @MainActor [weak self] in self?.setProgress(fraction, for: id) }
                     })
                 items[index].status = status
+                if case .done = status { stagedDirs[id] = folder }
             } catch let skip as ItemSkip {
                 items[index].status = .skipped(skip.message)
             } catch is VideoCancelled {
