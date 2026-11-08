@@ -93,7 +93,7 @@ When you change the code later, repeat the archive step and replace the app. Run
 
 ## How to use
 
-1. **Drop images or videos** (or a whole folder) onto the window, or click **Choose files…**. MagickUI works with one kind of file at a time, because images and videos use different tools. If you drop a different kind (or both), it asks which to work with.
+1. **Drop images or videos** (or a whole folder) onto the window, click **Choose files…**, or **paste** with **⌘V** (files copied in Finder, or a picture copied to the clipboard such as a screenshot). Pasted pictures have no folder of their own, so **Save** puts their results in Downloads unless you choose another folder. MagickUI works with one kind of file at a time, because images and videos use different tools. If you add a different kind (or both), it asks which to work with.
 2. **Pick an action.** You can switch actions from the tabs at the top, except while a result is waiting to be copied or saved.
 3. **Adjust the options** (see below).
 4. Click the **Run** button (for example **Crop 3 images**). Nothing is written next to your files yet. The result waits until you decide what to do with it.

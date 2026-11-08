@@ -74,6 +74,7 @@ final class AppContext {
 
     private var mainWindow: NSWindow?
     private var settingsWindow: NSWindow?
+    private var pasteMonitor: Any?
     private var cancellables = Set<AnyCancellable>()
 
     private init() {
@@ -96,6 +97,30 @@ final class AppContext {
                 Task { @MainActor in self?.updateActivationPolicy() }
             }
             .store(in: &cancellables)
+
+        installPasteShortcut()
+    }
+
+    // MARK: Paste (⌘V)
+
+    /// The windows are plain NSWindows (no SwiftUI window scene), so the app has no Edit menu and nothing
+    /// would receive ⌘V. This catches the shortcut in the main window, unless a text field is being edited.
+    private func installPasteShortcut() {
+        guard pasteMonitor == nil else { return }
+        pasteMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self else { return event }
+            // nil means the key press was handled here.
+            return MainActor.assumeIsolated { self.handlePasteShortcut(event) }
+        }
+    }
+
+    private func handlePasteShortcut(_ event: NSEvent) -> NSEvent? {
+        guard event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
+              event.charactersIgnoringModifiers?.lowercased() == "v",
+              let window = event.window, window === mainWindow,
+              !(window.firstResponder is NSText) else { return event }
+        workspace.pasteFromClipboard()
+        return nil
     }
 
     // MARK: Dock icon

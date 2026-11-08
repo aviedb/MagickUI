@@ -110,17 +110,35 @@ private struct DropZoneView: View {
                 .foregroundStyle(isTargeted ? Color.accentColor : Color.secondary)
             Text("Drop images or videos here")
                 .font(.largeTitle.weight(.semibold))
-            Text("Images: JPG, PNG, HEIC, WebP, TIFF, BMP. Videos: MP4, MOV, MKV, WebM, AVI and more. You can also drop a folder.")
+                .multilineTextAlignment(.center)
+            Text("Images: JPG, PNG, HEIC, WebP, TIFF, BMP. Videos: MP4, MOV, MKV, WebM, AVI and more. You can also drop a folder, or paste with ⌘V.")
                 .foregroundStyle(.secondary)
-            Button("Choose files…", action: choose)
-                .controlSize(.large)
-                .padding(.top, 6)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 520)
+            HStack(spacing: 10) {
+                Button("Choose files…", action: choose)
+                Button {
+                    workspace.pasteFromClipboard()
+                } label: {
+                    Label("Paste", systemImage: "doc.on.clipboard")
+                }
+                .help("Add the images or videos on the clipboard (⌘V)")
+            }
+            .controlSize(.large)
+            .padding(.top, 6)
             if let notice = workspace.notice {
                 Text(notice)
                     .font(.callout)
                     .foregroundStyle(.orange)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 520)
             }
         }
+        // Keep the text inside the dashed border, even in a small window.
+        .padding(.horizontal, 56)
+        .padding(.vertical, 40)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(isTargeted ? Color.accentColor.opacity(0.08) : Color.clear)
         .overlay(
@@ -180,6 +198,8 @@ private struct SidebarView: View {
                     .font(.headline)
                 Spacer()
                 Button("Add…", action: addMore)
+                    .disabled(workspace.isRunning)
+                Button("Paste") { workspace.pasteFromClipboard() }
                     .disabled(workspace.isRunning)
                 Button("Clear") { workspace.clearAll() }
                     .disabled(workspace.isRunning)
@@ -357,6 +377,9 @@ private struct CompactImageStrip: View {
                 }
                 Spacer(minLength: 4)
                 Button("Add…", action: addMore)
+                    .controlSize(.small)
+                    .disabled(workspace.isRunning)
+                Button("Paste") { workspace.pasteFromClipboard() }
                     .controlSize(.small)
                     .disabled(workspace.isRunning)
                 Button("Clear") { workspace.clearAll() }

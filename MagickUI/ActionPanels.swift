@@ -491,7 +491,9 @@ struct RunBar: View {
     private func saveToInfo(maxWidth: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text("Save to").font(.caption).foregroundStyle(.secondary)
-            Text(workspace.outputFolder?.path ?? "Next to the originals")
+            Text(workspace.outputFolder?.path
+                 ?? (workspace.hasTemporaryOriginals ? "Next to the originals (pasted pictures: Downloads)"
+                                                     : "Next to the originals"))
                 .lineLimit(1)
                 .truncationMode(.middle)
         }

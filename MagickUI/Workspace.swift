@@ -63,6 +63,9 @@ final class Workspace: ObservableObject {
     /// Every run writes its results under here, in its own folder.
     private static let stagingRoot = FileManager.default.temporaryDirectory
         .appendingPathComponent("MagickTools-results", isDirectory: true)
+    /// Pictures pasted from the clipboard (screenshots, "Copy image") have no file yet, so they are written here.
+    private static let pastedRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("MagickTools-pasted", isDirectory: true)
     private var stagingRun: URL?
     /// The run folder the clipboard was last filled from, and the clipboard's change count right after that.
     /// While the count is unchanged, the clipboard still points at files in that folder.
@@ -71,8 +74,9 @@ final class Workspace: ObservableObject {
 
     init(app: AppState) {
         self.app = app
-        // Results from an earlier launch that were never saved.
+        // Results and pasted pictures from an earlier launch.
         try? FileManager.default.removeItem(at: Self.stagingRoot)
+        try? FileManager.default.removeItem(at: Self.pastedRoot)
     }
 
     // MARK: - Derived
@@ -201,6 +205,11 @@ final class Workspace: ObservableObject {
 
     /// True while this item's result is still in the temporary folder (not saved anywhere yet).
     func isStaged(_ id: UUID) -> Bool { stagedDirs[id] != nil }
+
+    /// Some files in the list came from the clipboard, so they have no folder of their own to save next to.
+    var hasTemporaryOriginals: Bool {
+        items.contains { $0.kind == activeKind && isTemporary($0.url) }
+    }
 
     private var processorSettings: ProcessorSettings {
         var settings = ProcessorSettings()
@@ -596,6 +605,85 @@ final class Workspace: ObservableObject {
         }
     }
 
+    // MARK: - Paste from the clipboard
+
+    /// Adds what is on the clipboard: files copied in Finder, or a picture (a screenshot, or "Copy image" in a browser).
+    func pasteFromClipboard() {
+        guard !isRunning else { return }
+        let pasteboard = NSPasteboard.general
+
+        var urls = (pasteboard.readObjects(forClasses: [NSURL.self],
+                                           options: [.urlReadingFileURLsOnly: true]) as? [URL]) ?? []
+        // Results that were copied from this app and pasted back: work on a copy, because the originals are temporary.
+        urls = urls.map { isInside($0, Self.stagingRoot) ? (copyToPasted($0) ?? $0) : $0 }
+
+        if urls.isEmpty, let picture = writePastedPicture(from: pasteboard) {
+            urls = [picture]
+        }
+        guard !urls.isEmpty else {
+            notice = "The clipboard has no images or videos to paste."
+            return
+        }
+        add(urls)
+    }
+
+    private func writePastedPicture(from pasteboard: NSPasteboard) -> URL? {
+        var png = pasteboard.data(forType: .png)
+        if png == nil,
+           let tiff = pasteboard.data(forType: .tiff),
+           let representation = NSBitmapImageRep(data: tiff) {
+            png = representation.representation(using: .png, properties: [:])
+        }
+        guard let png else { return nil }
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
+        var reserved = Set<String>()
+        do {
+            try FileManager.default.createDirectory(at: Self.pastedRoot, withIntermediateDirectories: true)
+            let url = OutputNaming.uniqueURL(directory: Self.pastedRoot,
+                                             stem: "Pasted image \(formatter.string(from: Date()))",
+                                             ext: "png",
+                                             reserved: &reserved)
+            try png.write(to: url)
+            return url
+        } catch {
+            return nil
+        }
+    }
+
+    private func copyToPasted(_ url: URL) -> URL? {
+        var reserved = Set<String>()
+        do {
+            try FileManager.default.createDirectory(at: Self.pastedRoot, withIntermediateDirectories: true)
+            let copy = OutputNaming.uniqueURL(directory: Self.pastedRoot,
+                                              stem: url.deletingPathExtension().lastPathComponent,
+                                              ext: url.pathExtension,
+                                              reserved: &reserved)
+            try FileManager.default.copyItem(at: url, to: copy)
+            return copy
+        } catch {
+            return nil
+        }
+    }
+
+    private func isInside(_ url: URL, _ folder: URL) -> Bool {
+        url.resolvingSymlinksInPath().path.hasPrefix(folder.resolvingSymlinksInPath().path + "/")
+    }
+
+    /// Pasted pictures and results pasted back live in temporary folders, so "next to the original" would be there too.
+    private func isTemporary(_ url: URL) -> Bool {
+        isInside(url, Self.pastedRoot) || isInside(url, Self.stagingRoot)
+    }
+
+    /// Where "Save" puts a result when no folder was chosen. Pasted pictures go to Downloads.
+    private func defaultDestination(for original: URL) -> URL {
+        guard isTemporary(original),
+              let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+        else { return original.deletingLastPathComponent() }
+        return downloads
+    }
+
     // MARK: - Results: copy or save
 
     /// Results are first written to a temporary folder. When the user picks "Copy to clipboard" or "Save",
@@ -664,7 +752,7 @@ final class Workspace: ObservableObject {
                   let staged = stagedDirs[item.id],
                   case .done(let output, let inBytes, let outBytes, let note) = item.status else { continue }
 
-            let destination = outputFolder ?? item.url.deletingLastPathComponent()
+            let destination = outputFolder ?? defaultDestination(for: item.url)
             do {
                 try fm.createDirectory(at: destination, withIntermediateDirectories: true)
                 var firstFinal: URL?
