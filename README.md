@@ -31,9 +31,9 @@ Beyond the main window:
 
 | Feature | What it does |
 |---|---|
-| **Watched folders** | Optimizes new images automatically in folders you choose, such as Downloads or your screenshots folder |
+| **Watched folders** | Optimizes new images and videos automatically in folders you choose, such as Downloads or your screenshots and screen recordings folders. Images and videos have separate folder lists |
 | **Menu bar app** | Runs in the background with no Dock icon, and you can pause watching or open Settings from the menu bar |
-| **Floating preview** | A small card in the bottom-right corner shows **Optimizing…** and then the result, with no notification |
+| **Floating preview** | A small card in the bottom-right corner shows **Optimizing…** (with a progress bar for videos) and then the result |
 | **Finder integration** | Right-click ▸ **Open With ▸ MagickUI**, drop files on the Dock icon, or use the **Services** actions, including one-click quick compress |
 | **Resizable window** | The main window shrinks to a small size, so it fits any corner of the screen when tiled with a window manager |
 
@@ -173,7 +173,7 @@ Select a video, move the slider (or step by a frame or a second), and pick any i
 
 MagickUI can optimize new images as they land in folders you choose, with no window needed.
 
-1. Open **Settings** (menu bar icon ▸ **Settings…**, or ⌘,) and go to **Watched Folders**.
+1. Open **Settings** (menu bar icon ▸ **Settings…**, or ⌘,) and go to **Image Folders**.
 2. Click **+** and choose a folder, such as Downloads or your screenshots folder.
 3. Pick what happens to each new image. **Smart optimize** is the default. You can also compress to an exact size, convert, shrink to a maximum size, or remove metadata.
 4. Choose what happens to the original: **move it to the Trash** (default) or **overwrite it**.
@@ -187,9 +187,27 @@ Details:
 - Files MagickUI has written are marked with a hidden attribute, so they are never processed twice.
 - Closing the window does not quit the app, so watching continues. Use the menu bar icon to pause watching or quit.
 
+### Video folders
+
+Videos have their own tab, **Settings ▸ Video Folders**, with its own list of folders, so you can watch your screen recordings folder differently from your photos folder. For each folder you choose what happens to every new video:
+
+- **Smart optimize:** H.264 or HEVC, quality and speed. The resolution never changes.
+- **Compress to an exact target size:** for example 25 MB, with optional automatic downscaling.
+- **Downscale:** a maximum resolution and an optional frame rate limit.
+- **Convert:** MP4 (H.264 or HEVC), MOV, MKV or WebM, optionally by just copying the streams.
+
+Details:
+
+- A new video is processed only after it has stopped changing for a few seconds, so a recording that is still being written, or a file that is still copying, is left alone. If a finished-looking file can't be read yet, MagickUI tries again a little later.
+- Videos are encoded **one at a time**, in their own queue, so a long video never holds up your images. A card in the corner shows the thumbnail and a live progress bar.
+- To stop the video being processed, use **Cancel the video being processed** in the menu bar.
+- The original goes to the Trash by default, and Smart optimize and Compress never replace a file with a bigger one.
+- **Pause folder watching** in the menu bar pauses image and video folders together.
+- Videos need `ffmpeg` (`brew install ffmpeg`).
+
 ### Floating preview
 
-When a watched folder (or a Finder quick action) optimizes an image, a small card appears in the bottom-right corner of your screen. It shows a thumbnail and says **Optimizing…**, then turns into the result, for example **Saved 1.4 MB (−68%)** with the before and after sizes. No notification is sent.
+When a watched folder (or a Finder quick action) processes a file, a small card appears in the bottom-right corner of your screen. It shows a thumbnail and says **Optimizing…** (with a progress bar for videos), then turns into the result, for example **Saved 1.4 MB (−68%)** with the before and after sizes. No notification is sent.
 
 - Cards never take focus, so they don't interrupt what you're typing.
 - Several images stack up. Cards fade away on their own after a few seconds.
@@ -241,7 +259,6 @@ You can also drop a folder.
 - JPEG edits re-encode the file, which causes a small quality loss.
 - Only the first frame of an animated or multi-page file is used. GIF input is not accepted yet.
 - Images are processed one at a time.
-- Watched folders work on images only for now. Video is coming.
 - Video: fast trim copies the streams, so it can only cut on keyframes. Use Precise for an exact cut.
 - Video: GIFs and animated WebP are large for long clips, and have no sound.
 - Dropping files on the Dock icon only works while the icon is showing, which in the default mode means while a window is open.
@@ -269,7 +286,7 @@ You can also drop a folder.
 - [x] Convert between many formats, including GIF, animated WebP and audio-only
 - [x] Trim with a frame preview
 - [x] Export any frame as an image
-- [ ] Watched folders and the floating preview for video, with a progress bar
+- [x] Watched folders and the floating preview for video, with a progress bar
 - [ ] An optional hardware-encoder mode (VideoToolbox) for much faster encoding
 - [ ] Tone mapping, so HDR videos can become SDR without looking flat
 - [ ] Remove or replace the audio track

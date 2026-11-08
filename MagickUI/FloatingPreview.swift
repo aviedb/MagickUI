@@ -25,6 +25,10 @@ struct PreviewItem: Identifiable {
     var thumbnail: NSImage?
     var state: State
     var reveal: URL?
+    /// What the card says while it works, such as "Optimizing…" or "Compressing…".
+    var workingTitle: String = "Optimizing…"
+    /// 0...1 for long jobs (video). nil shows no bar.
+    var progress: Double? = nil
 }
 
 // MARK: - The floating preview
@@ -64,20 +68,32 @@ final class FloatingPreview: ObservableObject {
 
     /// Shows an "Optimizing…" card. Returns an id to finish it with.
     @discardableResult
-    func begin(url: URL?, name: String, force: Bool = false) -> UUID {
+    func begin(url: URL?,
+               name: String,
+               title: String = "Optimizing…",
+               isVideo: Bool = false,
+               force: Bool = false) -> UUID {
         let id = UUID()
         guard isEnabled || force else { return id }
 
-        items.append(PreviewItem(id: id, name: name, thumbnail: nil, state: .working, reveal: nil))
+        items.append(PreviewItem(id: id, name: name, thumbnail: nil, state: .working, reveal: nil,
+                                 workingTitle: title))
         if items.count > Metrics.maxVisible {
             items.removeFirst(items.count - Metrics.maxVisible)
         }
-        if let url { loadThumbnail(for: id, url: url) }
+        if let url { loadThumbnail(for: id, url: url, isVideo: isVideo) }
         return id
+    }
+
+    /// Fills the progress bar on a card that is still working.
+    func setProgress(_ id: UUID, _ fraction: Double) {
+        guard let index = items.firstIndex(where: { $0.id == id }), case .working = items[index].state else { return }
+        items[index].progress = min(1, max(0, fraction))
     }
 
     func finish(_ id: UUID, _ outcome: PreviewOutcome) {
         guard let index = items.firstIndex(where: { $0.id == id }) else { return }
+        items[index].progress = nil
         let seconds: TimeInterval
 
         switch outcome {
@@ -139,12 +155,24 @@ final class FloatingPreview: ObservableObject {
         }
     }
 
-    private func loadThumbnail(for id: UUID, url: URL) {
+    private func loadThumbnail(for id: UUID, url: URL, isVideo: Bool) {
         Task {
-            let box = await Task.detached(priority: .utility) {
-                SendableBox(value: ImagePreview.cgImage(url: url, maxPixel: 160))
-            }.value
-            guard let image = box.value, let index = items.firstIndex(where: { $0.id == id }) else { return }
+            var image: CGImage?
+            if isVideo {
+                // A frame a little way in, through ffmpeg (ImageIO can't read most video formats).
+                if let ffmpeg = ExternalTool.ffmpeg {
+                    image = await FrameGrabber.frame(url: url, at: 1, maxWidth: 160, ffmpeg: ffmpeg)
+                    if image == nil {
+                        image = await FrameGrabber.frame(url: url, at: 0, maxWidth: 160, ffmpeg: ffmpeg)
+                    }
+                }
+            } else {
+                let box = await Task.detached(priority: .utility) {
+                    SendableBox(value: ImagePreview.cgImage(url: url, maxPixel: 160))
+                }.value
+                image = box.value
+            }
+            guard let image, let index = items.firstIndex(where: { $0.id == id }) else { return }
             items[index].thumbnail = NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
         }
     }
@@ -250,6 +278,15 @@ private struct PreviewCard: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
             .strokeBorder(Color.primary.opacity(0.10)))
+        .overlay(alignment: .bottom) {
+            if case .working = item.state, let progress = item.progress {
+                ProgressView(value: progress)
+                    .progressViewStyle(.linear)
+                    .controlSize(.small)
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 5)
+            }
+        }
         .shadow(color: .black.opacity(0.25), radius: 10, x: 0, y: 4)
         .overlay(alignment: .topTrailing) {
             if hovering {
@@ -308,7 +345,10 @@ private struct PreviewCard: View {
 
     private var title: String {
         switch item.state {
-        case .working: return "Optimizing…"
+        case .working:
+            guard let progress = item.progress else { return item.workingTitle }
+            let base = item.workingTitle.hasSuffix("…") ? String(item.workingTitle.dropLast()) : item.workingTitle
+            return "\(base) \(Int((progress * 100).rounded()))%"
         case .saved(let title, _): return title
         case .neutral(let message): return message
         case .failed: return "Couldn't process this image"

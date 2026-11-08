@@ -60,8 +60,17 @@ final class AppContext {
     let appState = AppState()
     let settings = AppSettings()
     let ruleStore = RuleStore()
+    let videoRuleStore = VideoRuleStore()
     lazy var workspace = Workspace(app: appState)
     lazy var watcher = WatchManager(app: appState, store: ruleStore, settings: settings)
+    /// Video folders have their own list and their own queue. "Pause folder watching" pauses both.
+    lazy var videoWatcher: VideoWatchManager = {
+        let manager = VideoWatchManager(store: self.videoRuleStore)
+        self.watcher.$isPaused
+            .sink { [weak manager] paused in manager?.isPaused = paused }
+            .store(in: &self.cancellables)
+        return manager
+    }()
 
     private var mainWindow: NSWindow?
     private var settingsWindow: NSWindow?
@@ -186,6 +195,8 @@ final class AppContext {
                 .environmentObject(settings)
                 .environmentObject(ruleStore)
                 .environmentObject(watcher)
+                .environmentObject(videoRuleStore)
+                .environmentObject(videoWatcher)
             settingsWindow = makeWindow(title: "MagickUI Settings",
                                         size: NSSize(width: 780, height: 540),
                                         minSize: NSSize(width: 620, height: 440),
@@ -271,7 +282,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.servicesProvider = ServicesProvider.shared
         NSUpdateDynamicServices()
         context.updateActivationPolicy()
-        _ = context.watcher                    // creating it starts the folder watchers
+        _ = context.watcher                    // creating these starts the folder watchers
+        _ = context.videoWatcher
         if context.settings.showWindowAtLaunch {
             context.showMainWindow()
         }

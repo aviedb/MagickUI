@@ -8,7 +8,9 @@ struct SettingsView: View {
     var body: some View {
         TabView {
             WatchedFoldersTab()
-                .tabItem { Label("Watched Folders", systemImage: "folder") }
+                .tabItem { Label("Image Folders", systemImage: "photo") }
+            VideoFoldersTab()
+                .tabItem { Label("Video Folders", systemImage: "film") }
             GeneralTab()
                 .tabItem { Label("General", systemImage: "gearshape") }
         }
@@ -129,7 +131,7 @@ private struct WatchedFoldersTab: View {
     }
 }
 
-private struct SidebarButton: View {
+struct SidebarButton: View {
     let symbol: String
     let help: String
     let action: () -> Void
@@ -380,6 +382,7 @@ private struct GeneralTab: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var app: AppState
     @EnvironmentObject private var watcher: WatchManager
+    @EnvironmentObject private var videoWatcher: VideoWatchManager
     @AppStorage("showMenuBarIcon") private var showMenuBarIcon = true
 
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -419,12 +422,12 @@ private struct GeneralTab: View {
             }
 
             Section {
-                Toggle("Show a floating preview while images are optimized", isOn: $settings.showFloatingPreview)
+                Toggle("Show a floating preview while images and videos are processed", isOn: $settings.showFloatingPreview)
                 Button("Try it") { FloatingPreview.shared.demo() }
             } header: {
                 Text("Floating preview")
             } footer: {
-                Text("A small card appears in the bottom-right corner of your screen. It says “Optimizing…” while a watched folder or a Finder quick action is working, then shows how much space was saved. Click it to reveal the file.")
+                Text("A small card appears in the bottom-right corner of your screen. It says “Optimizing…” while a watched folder or a Finder quick action is working (with a progress bar for videos), then shows how much space was saved. Click it to reveal the file.")
             }
 
             Section {
@@ -460,7 +463,8 @@ private struct GeneralTab: View {
             }
 
             Section {
-                Text("Space saved by watched folders: \(formatBytes(watcher.totalSavedBytes))")
+                Text("Space saved by image folders: \(formatBytes(watcher.totalSavedBytes))")
+                Text("Space saved by video folders: \(formatBytes(videoWatcher.totalSavedBytes))")
             } header: {
                 Text("This session")
             }

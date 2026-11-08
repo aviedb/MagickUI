@@ -12,6 +12,7 @@ struct MagickToolsApp: App {
         MenuBarExtra("MagickUI", systemImage: "photo.on.rectangle.angled", isInserted: $showMenuBarIcon) {
             MenuBarContent()
                 .environmentObject(AppContext.shared.watcher)
+                .environmentObject(AppContext.shared.videoWatcher)
         }
         .commands {
             CommandGroup(replacing: .appSettings) {
