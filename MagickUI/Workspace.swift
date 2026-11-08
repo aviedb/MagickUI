@@ -74,9 +74,47 @@ final class Workspace: ObservableObject {
 
     init(app: AppState) {
         self.app = app
-        // Results and pasted pictures from an earlier launch.
-        try? FileManager.default.removeItem(at: Self.stagingRoot)
-        try? FileManager.default.removeItem(at: Self.pastedRoot)
+    }
+
+    // MARK: - Temporary files
+
+    /// Everything this app puts in the system temporary folder starts with this.
+    private static let temporaryPrefix = "MagickTools-"
+
+    /// Removes all of the app's temporary files: unsaved results, pasted pictures, and work folders that a
+    /// crash left behind. Runs at launch, and at quit (where `keptRun` protects files the clipboard points at).
+    static func removeTemporaryFiles(keeping keptRun: String? = nil) {
+        let fm = FileManager.default
+        let entries = (try? fm.contentsOfDirectory(at: fm.temporaryDirectory, includingPropertiesForKeys: nil)) ?? []
+        for entry in entries where entry.lastPathComponent.hasPrefix(temporaryPrefix) {
+            if let keptRun, entry.lastPathComponent == stagingRoot.lastPathComponent {
+                let runs = (try? fm.contentsOfDirectory(at: entry, includingPropertiesForKeys: nil)) ?? []
+                for run in runs where run.lastPathComponent != keptRun { try? fm.removeItem(at: run) }
+            } else {
+                try? fm.removeItem(at: entry)
+            }
+        }
+    }
+
+    func cleanUpOnQuit() {
+        var keptRun: String?
+        if let run = clipboardRun, clipboardChangeCount == NSPasteboard.general.changeCount {
+            keptRun = run.lastPathComponent
+        }
+        Self.removeTemporaryFiles(keeping: keptRun)
+    }
+
+    /// Deletes pasted pictures that are no longer in the list, so they don't pile up while the app keeps running.
+    private func purgeUnusedPastedFiles() {
+        var inUse = Set(items.map { $0.url.resolvingSymlinksInPath().path })
+        if let pending = pendingDrop {
+            for url in pending.images + pending.videos { inUse.insert(url.resolvingSymlinksInPath().path) }
+        }
+        let files = (try? FileManager.default.contentsOfDirectory(at: Self.pastedRoot,
+                                                                  includingPropertiesForKeys: nil)) ?? []
+        for file in files where !inUse.contains(file.resolvingSymlinksInPath().path) {
+            try? FileManager.default.removeItem(at: file)
+        }
     }
 
     // MARK: - Derived
@@ -313,6 +351,7 @@ final class Workspace: ObservableObject {
         action = nil
         videoAction = nil
         append(urls, kind: kind)
+        purgeUnusedPastedFiles()
     }
 
     /// Where each finished file went, so the next edit can start from the results.
@@ -341,6 +380,7 @@ final class Workspace: ObservableObject {
         guard !isRunning else { return }
         discardStaging()
         items.removeAll { $0.id == id }
+        purgeUnusedPastedFiles()
         cropRects[id] = nil
         trimRanges[id] = nil
         frameTimes[id] = nil
@@ -369,6 +409,7 @@ final class Workspace: ObservableObject {
         action = nil
         videoAction = nil
         notice = nil
+        purgeUnusedPastedFiles()
     }
 
     func select(_ id: UUID) {
@@ -382,7 +423,11 @@ final class Workspace: ObservableObject {
 
     func choose(_ newAction: ImageAction) {
         action = newAction
-        if newAction == .crop { refreshCropPreview() }
+        if newAction == .crop {
+            refreshCropPreview()
+        } else {
+            cropPreview = nil     // the large preview isn't needed outside Crop
+        }
     }
 
     func chooseVideo(_ newAction: VideoAction) {

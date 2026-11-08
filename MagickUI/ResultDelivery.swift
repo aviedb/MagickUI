@@ -31,7 +31,9 @@ enum ResultClipboard {
         item.setString(url.absoluteString, forType: .fileURL)
         item.setData(data, forType: NSPasteboard.PasteboardType(type.identifier))
         // Many apps only read PNG or TIFF, so formats like JPG, WebP and HEIC get a TIFF copy as well.
-        if type != .png && type != .tiff, let tiff = NSImage(data: data)?.tiffRepresentation {
+        // LZW keeps it much smaller than a raw TIFF, because the clipboard holds this until it is replaced.
+        if type != .png && type != .tiff,
+           let tiff = NSImage(data: data)?.tiffRepresentation(using: .lzw, factor: 1) {
             item.setData(tiff, forType: .tiff)
         }
         return item

@@ -306,6 +306,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let context = AppContext.shared
         NSApp.servicesProvider = ServicesProvider.shared
         NSUpdateDynamicServices()
+        // Unsaved results, pasted pictures or work folders that an earlier run left in the temporary folder.
+        Workspace.removeTemporaryFiles()
         context.updateActivationPolicy()
         _ = context.watcher                    // creating these starts the folder watchers
         _ = context.videoWatcher
@@ -330,6 +332,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Closing the window must not quit the app: folder watching keeps running.
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
+    }
+
+    /// Leave nothing behind in the temporary folder.
+    func applicationWillTerminate(_ notification: Notification) {
+        AppContext.shared.workspace.cleanUpOnQuit()
     }
 }
 
