@@ -1,15 +1,18 @@
 import Foundation
 
-/// Watches ONE folder (top level only) and calls `onReady` once a new image has finished being written.
+/// Watches ONE folder (top level only) and calls `onReady` once a new file with a wanted extension has
+/// finished being written. It is used for image folders and for video folders.
 ///
 /// How it works: a kernel file-system event on the folder wakes us up, and a slow timer is a safety net.
 /// On each scan we list the folder and compare against what we've seen. A new file must keep the same
-/// size and modification time for about a second before it counts as finished, so half-written
-/// downloads and screenshots are never touched.
+/// size and modification time for `stableSeconds` before it counts as finished, so half-written
+/// downloads, screenshots and screen recordings are never touched.
 @MainActor
 final class FolderWatcher {
-    private(set) var rule: WatchRule
-    private let onReady: (WatchRule, URL) -> Void
+    let path: String
+    private let extensions: Set<String>
+    private let stableSeconds: TimeInterval
+    private let onReady: (URL) -> Void
 
     private struct Signature: Equatable {
         let size: Int64
@@ -28,23 +31,25 @@ final class FolderWatcher {
     private var ignoredUntil: [String: Date] = [:]
     private var running = false
     private var scanGeneration = 0
-    private let stableSeconds: TimeInterval = 1.0
 
-    init(rule: WatchRule, onReady: @escaping (WatchRule, URL) -> Void) {
-        self.rule = rule
+    private var folderURL: URL { URL(fileURLWithPath: path, isDirectory: true) }
+
+    init(path: String,
+         extensions: Set<String>,
+         stableSeconds: TimeInterval = 1.0,
+         onReady: @escaping (URL) -> Void) {
+        self.path = path
+        self.extensions = extensions
+        self.stableSeconds = stableSeconds
         self.onReady = onReady
     }
 
     // MARK: Lifecycle
 
-    func update(rule: WatchRule) {
-        self.rule = rule
-    }
-
     func start() {
         guard !running else { return }
         running = true
-        // Images that are already in the folder are left alone.
+        // Files that are already in the folder are left alone.
         known = Dictionary(uniqueKeysWithValues: listFiles().map { ($0.url.path, $0.signature) })
         openSource()
         timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
@@ -66,16 +71,17 @@ final class FolderWatcher {
         ignoredUntil[url.path] = Date().addingTimeInterval(10)
     }
 
-    /// Unprocessed images currently in a folder (used by "Process existing images now").
-    static func existingImages(in folder: URL) -> [URL] {
-        listImages(in: folder).map { $0.url }.filter { !ProcessedMarker.isMarked($0) }
+    /// Files in a folder that haven't been processed yet (used by "Process existing files now").
+    static func existingFiles(in folder: URL, extensions: Set<String>) -> [URL] {
+        listFiles(in: folder, extensions: extensions)
+            .map { $0.url }
+            .filter { !ProcessedMarker.isMarked($0) }
     }
 
     // MARK: Events
 
     private func openSource() {
         guard source == nil else { return }
-        let path = rule.path
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue else { return }
 
@@ -127,28 +133,28 @@ final class FolderWatcher {
         var needsFollowUp = false
 
         for (url, signature) in files {
-            let path = url.path
-            present.insert(path)
+            let filePath = url.path
+            present.insert(filePath)
 
-            if known[path] == signature { continue }
+            if known[filePath] == signature { continue }
             if signature.size == 0 { needsFollowUp = true; continue }
-            if let until = ignoredUntil[path], until > now { needsFollowUp = true; continue }
+            if let until = ignoredUntil[filePath], until > now { needsFollowUp = true; continue }
             if ProcessedMarker.isMarked(url) {
-                known[path] = signature
-                pending[path] = nil
+                known[filePath] = signature
+                pending[filePath] = nil
                 continue
             }
 
-            if let existing = pending[path], existing.signature == signature {
+            if let existing = pending[filePath], existing.signature == signature {
                 if now.timeIntervalSince(existing.lastChange) >= stableSeconds {
-                    pending[path] = nil
-                    known[path] = signature
-                    onReady(rule, url)
+                    pending[filePath] = nil
+                    known[filePath] = signature
+                    onReady(url)
                 } else {
                     needsFollowUp = true
                 }
             } else {
-                pending[path] = Pending(signature: signature, lastChange: now)
+                pending[filePath] = Pending(signature: signature, lastChange: now)
                 needsFollowUp = true
             }
         }
@@ -161,10 +167,10 @@ final class FolderWatcher {
     }
 
     private func listFiles() -> [(url: URL, signature: Signature)] {
-        Self.listImages(in: rule.folderURL)
+        Self.listFiles(in: folderURL, extensions: extensions)
     }
 
-    private static func listImages(in folder: URL) -> [(url: URL, signature: Signature)] {
+    private static func listFiles(in folder: URL, extensions: Set<String>) -> [(url: URL, signature: Signature)] {
         let keys: [URLResourceKey] = [.fileSizeKey, .contentModificationDateKey, .isRegularFileKey]
         guard let urls = try? FileManager.default.contentsOfDirectory(
             at: folder,
@@ -173,7 +179,7 @@ final class FolderWatcher {
 
         var result: [(url: URL, signature: Signature)] = []
         for url in urls {
-            guard ImageFiles.accepted.contains(url.pathExtension.lowercased()) else { continue }
+            guard extensions.contains(url.pathExtension.lowercased()) else { continue }
             guard let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true else { continue }
             let signature = Signature(
                 size: Int64(values.fileSize ?? 0),

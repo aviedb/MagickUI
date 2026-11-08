@@ -165,3 +165,50 @@ nonisolated enum ImagePreview {
         return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
     }
 }
+
+
+// MARK: - Images and videos together
+
+nonisolated enum MediaFiles {
+    /// Video containers the main window accepts. (".ts" is left out on purpose, so TypeScript files in a
+    /// dropped folder aren't mistaken for videos.)
+    static let videoExtensions: Set<String> = [
+        "mp4", "m4v", "mov", "mkv", "webm", "avi", "mpg", "mpeg", "wmv", "flv", "mts", "m2ts", "3gp", "ogv"
+    ]
+
+    static func kind(of url: URL) -> MediaKind? {
+        let ext = url.pathExtension.lowercased()
+        if ImageFiles.accepted.contains(ext) { return .image }
+        if videoExtensions.contains(ext) { return .video }
+        return nil
+    }
+
+    /// Expands folders (recursively) and sorts what it finds into images and videos.
+    static func collect(from urls: [URL]) -> (images: [URL], videos: [URL], skipped: Int) {
+        var images: [URL] = []
+        var videos: [URL] = []
+        var seen = Set<String>()
+        var skipped = 0
+
+        func consider(_ url: URL) {
+            guard let kind = kind(of: url) else { skipped += 1; return }
+            guard seen.insert(url.path).inserted else { return }
+            if kind == .image { images.append(url) } else { videos.append(url) }
+        }
+
+        for url in urls {
+            var isDirectory: ObjCBool = false
+            if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue {
+                let enumerator = FileManager.default.enumerator(
+                    at: url,
+                    includingPropertiesForKeys: nil,
+                    options: [.skipsHiddenFiles, .skipsPackageDescendants])
+                let found = (enumerator?.allObjects as? [URL]) ?? []
+                for item in found.sorted(by: { $0.path < $1.path }) { consider(item) }
+            } else {
+                consider(url)
+            }
+        }
+        return (images, videos, skipped)
+    }
+}

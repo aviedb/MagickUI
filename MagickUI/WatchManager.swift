@@ -48,18 +48,16 @@ final class WatchManager: ObservableObject {
             for rule in rules where rule.enabled { wanted[rule.id] = rule }
         }
 
+        // Stop watchers whose folder was removed, disabled or changed.
         for (id, watcher) in Array(watchers) {
-            if let rule = wanted[id], rule.path == watcher.rule.path {
-                watcher.update(rule: rule)
-            } else {
-                watcher.stop()
-                watchers[id] = nil
-            }
+            if let rule = wanted[id], rule.path == watcher.path { continue }
+            watcher.stop()
+            watchers[id] = nil
         }
 
         for (id, rule) in wanted where watchers[id] == nil {
-            let watcher = FolderWatcher(rule: rule) { [weak self] rule, url in
-                self?.enqueue(rule, url)
+            let watcher = FolderWatcher(path: rule.path, extensions: ImageFiles.accepted) { [weak self] url in
+                self?.fileReady(ruleID: id, url: url)
             }
             watchers[id] = watcher
             watcher.start()
@@ -67,9 +65,15 @@ final class WatchManager: ObservableObject {
         activeFolderCount = watchers.count
     }
 
+    /// A new image has finished arriving. The rule is looked up now, so settings changes apply right away.
+    private func fileReady(ruleID: UUID, url: URL) {
+        guard let rule = store.rules.first(where: { $0.id == ruleID }) else { return }
+        enqueue(rule, url)
+    }
+
     /// "Process existing images now" in Settings.
     func processExisting(in rule: WatchRule) {
-        for url in FolderWatcher.existingImages(in: rule.folderURL) {
+        for url in FolderWatcher.existingFiles(in: rule.folderURL, extensions: ImageFiles.accepted) {
             enqueue(rule, url)
         }
     }

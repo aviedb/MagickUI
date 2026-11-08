@@ -8,6 +8,13 @@ struct RootView: View {
     @State private var isTargeted = false
     @State private var showImporter = false
 
+    /// Images, videos and folders. Some video containers (MKV, WebM…) have no system type, so they're added by extension.
+    private var importerTypes: [UTType] {
+        let extras = ["mkv", "webm", "avi", "wmv", "flv", "mpg", "mpeg", "mts", "m2ts", "ogv", "3gp"]
+            .compactMap { UTType(filenameExtension: $0) }
+        return [.image, .movie, .audiovisualContent, .folder] + extras
+    }
+
     var body: some View {
         ZStack(alignment: .top) {
             if workspace.items.isEmpty {
@@ -25,7 +32,7 @@ struct RootView: View {
             if isTargeted && !workspace.items.isEmpty {
                 ZStack {
                     Color.accentColor.opacity(0.12)
-                    Label("Drop to add more images", systemImage: "plus.circle.fill")
+                    Label("Drop to add more files", systemImage: "plus.circle.fill")
                         .font(.title2)
                         .padding(20)
                         .background(.regularMaterial)
@@ -41,10 +48,41 @@ struct RootView: View {
             isTargeted = targeted
         }
         .fileImporter(isPresented: $showImporter,
-                      allowedContentTypes: [.image, .folder],
+                      allowedContentTypes: importerTypes,
                       allowsMultipleSelection: true) { result in
             if case .success(let urls) = result { workspace.add(urls) }
         }
+        .buttonStyle(AppButtonStyle(.bordered))
+        .confirmationDialog(
+            "Images and videos can't be edited together",
+            isPresented: Binding(get: { workspace.pendingDrop != nil },
+                                 set: { if !$0 { workspace.pendingDrop = nil } }),
+            titleVisibility: .visible,
+            presenting: workspace.pendingDrop
+        ) { pending in
+            if !pending.images.isEmpty {
+                Button(choiceTitle(for: .image, count: pending.images.count)) {
+                    workspace.resolveDrop(pending, choose: .image)
+                }
+            }
+            if !pending.videos.isEmpty {
+                Button(choiceTitle(for: .video, count: pending.videos.count)) {
+                    workspace.resolveDrop(pending, choose: .video)
+                }
+            }
+            Button("Cancel", role: .cancel) { workspace.pendingDrop = nil }
+        } message: { _ in
+            Text("They use different tools, so pick which kind of file to work with.")
+        }
+    }
+
+    /// "Add 2 videos", or "Switch to 2 videos (replaces the current files)".
+    private func choiceTitle(for kind: MediaKind, count: Int) -> String {
+        let noun = kind == .image ? (count == 1 ? "image" : "images") : (count == 1 ? "video" : "videos")
+        guard let current = workspace.items.first?.kind else { return "Work with \(count) \(noun)" }
+        return current == kind
+            ? "Add \(count) \(noun)"
+            : "Switch to \(count) \(noun) (replaces the current files)"
     }
 }
 
@@ -60,11 +98,11 @@ private struct DropZoneView: View {
             Image(systemName: "photo.on.rectangle.angled")
                 .font(.system(size: 64))
                 .foregroundStyle(isTargeted ? Color.accentColor : Color.secondary)
-            Text("Drop images here")
+            Text("Drop images or videos here")
                 .font(.largeTitle.weight(.semibold))
-            Text("JPG, PNG, HEIC, WebP, TIFF and BMP. You can also drop a folder.")
+            Text("Images: JPG, PNG, HEIC, WebP, TIFF, BMP. Videos: MP4, MOV, MKV, WebM, AVI and more. You can also drop a folder.")
                 .foregroundStyle(.secondary)
-            Button("Choose images…", action: choose)
+            Button("Choose files…", action: choose)
                 .controlSize(.large)
                 .padding(.top, 6)
             if let notice = workspace.notice {
@@ -128,7 +166,7 @@ private struct SidebarView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text(workspace.items.count == 1 ? "1 image" : "\(workspace.items.count) images")
+                Text(workspace.countText)
                     .font(.headline)
                 Spacer()
                 Button("Add…", action: addMore)
@@ -169,12 +207,14 @@ private struct ImageRow: View {
     let selected: Bool
     let locked: Bool
     @EnvironmentObject private var workspace: Workspace
+    @State private var hovering = false
 
     private var subtitle: String {
         var parts: [String] = []
         if let size = item.pixelSize {
             parts.append("\(Int(size.width))×\(Int(size.height))")
         }
+        if let info = item.video { parts.append(formatDuration(info.duration)) }
         parts.append(formatBytes(item.byteSize))
         return parts.joined(separator: " · ")
     }
@@ -195,31 +235,46 @@ private struct ImageRow: View {
             Button {
                 workspace.remove(item.id)
             } label: {
-                Image(systemName: "xmark.circle.fill")
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .bold))
+                    .frame(width: 22, height: 22)
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(AppButtonStyle(.icon))
             .disabled(locked)
             .help("Remove from the list")
         }
         .padding(8)
-        .background(selected ? Color.accentColor.opacity(0.15) : Color.clear)
+        .background(selected ? Color.accentColor.opacity(0.15)
+                    : (hovering ? Color.primary.opacity(0.06) : Color.clear))
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .contentShape(Rectangle())
+        .onHover { hovering = $0 }
+        .pointerCursor()
         .onTapGesture { workspace.select(item.id) }
     }
 
-    @ViewBuilder
     private var thumbnail: some View {
-        if let image = item.thumbnail {
-            Image(nsImage: image)
-                .resizable()
-                .scaledToFill()
-                .frame(width: 48, height: 48)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-        } else {
-            RoundedRectangle(cornerRadius: 6)
-                .fill(Color.secondary.opacity(0.2))
-                .frame(width: 48, height: 48)
+        ZStack {
+            if let image = item.thumbnail {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Rectangle().fill(Color.secondary.opacity(0.2))
+                if item.kind == .video {
+                    Image(systemName: "film").foregroundStyle(.secondary)
+                }
+            }
+        }
+        .frame(width: 48, height: 48)
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay(alignment: .bottomTrailing) {
+            if item.kind == .video {
+                Image(systemName: "play.circle.fill")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.white, .black.opacity(0.55))
+                    .padding(2)
+            }
         }
     }
 
@@ -229,9 +284,16 @@ private struct ImageRow: View {
         case .idle:
             EmptyView()
         case .running(let message):
-            HStack(spacing: 6) {
-                ProgressView().controlSize(.small)
-                Text(message).font(.caption).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    if item.progress == nil { ProgressView().controlSize(.small) }
+                    Text(message).font(.caption).foregroundStyle(.secondary)
+                }
+                if let progress = item.progress {
+                    ProgressView(value: progress)
+                        .progressViewStyle(.linear)
+                        .controlSize(.small)
+                }
             }
         case .done(let output, let inBytes, let outBytes, let note):
             VStack(alignment: .leading, spacing: 2) {
@@ -241,7 +303,7 @@ private struct ImageRow: View {
                     .foregroundStyle(.green)
                     .lineLimit(2)
                 Button("Reveal in Finder") { workspace.reveal(output) }
-                    .buttonStyle(.link)
+                    .buttonStyle(AppButtonStyle(.link))
                     .font(.caption)
             }
         case .skipped(let message):
@@ -265,9 +327,7 @@ private struct CompactImageStrip: View {
     let addMore: () -> Void
     @EnvironmentObject private var workspace: Workspace
 
-    private var countText: String {
-        workspace.items.count == 1 ? "1 image" : "\(workspace.items.count) images"
-    }
+    private var countText: String { workspace.countText }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -289,7 +349,7 @@ private struct CompactImageStrip: View {
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 8) {
+                LazyHStack(spacing: 10) {
                     ForEach(workspace.items) { item in
                         CompactThumb(item: item,
                                      selected: item.id == workspace.selectedID,
@@ -298,7 +358,7 @@ private struct CompactImageStrip: View {
                 }
                 .padding(.vertical, 2)
             }
-            .frame(height: 60)
+            .frame(height: 68)
 
             if let item = workspace.selectedItem {
                 Text(summary(for: item))
@@ -315,6 +375,7 @@ private struct CompactImageStrip: View {
     private func summary(for item: ImageItem) -> String {
         var parts = [item.name]
         if let size = item.pixelSize { parts.append("\(Int(size.width))×\(Int(size.height))") }
+        if let info = item.video { parts.append(formatDuration(info.duration)) }
         parts.append(formatBytes(item.byteSize))
         switch item.status {
         case .idle: break
@@ -343,20 +404,51 @@ private struct CompactThumb: View {
     let locked: Bool
     @EnvironmentObject private var workspace: Workspace
 
+    /// The whole control is 64×64. The picture sits in the bottom-left 56×56, and the remove button sits in
+    /// the top-right corner INSIDE those bounds. (A button placed partly outside its container can't be
+    /// clicked there, which is why the old corner only worked in its lower-left part.)
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            thumbnail
-                .frame(width: 56, height: 56)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .strokeBorder(selected ? Color.accentColor : Color.primary.opacity(0.12),
-                                      lineWidth: selected ? 2.5 : 1)
-                )
-            badge
+        ZStack(alignment: .topTrailing) {
+            ZStack(alignment: .bottomTrailing) {
+                thumbnail
+                    .frame(width: 56, height: 56)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(selected ? Color.accentColor : Color.primary.opacity(0.12),
+                                          lineWidth: selected ? 2.5 : 1)
+                    )
+                badge
+            }
+            .overlay(alignment: .topLeading) {
+                if item.kind == .video {
+                    Image(systemName: "play.circle.fill")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.white, .black.opacity(0.55))
+                        .padding(3)
+                }
+            }
+            .contentShape(Rectangle())
+            .pointerCursor()
+            .onTapGesture { workspace.select(item.id) }
+            .padding(.top, 8)
+            .padding(.trailing, 8)
+
+            if !locked {
+                Button {
+                    workspace.remove(item.id)
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 17))
+                        .foregroundStyle(.white, Color.black.opacity(0.75))
+                        .background(Circle().fill(Color.white.opacity(0.95)).padding(2))
+                        .frame(width: 24, height: 24)
+                }
+                .buttonStyle(AppButtonStyle(.icon))
+                .help("Remove")
+            }
         }
-        .contentShape(Rectangle())
-        .onTapGesture { workspace.select(item.id) }
+        .frame(width: 64, height: 64)
         .contextMenu {
             Button("Remove") { workspace.remove(item.id) }
                 .disabled(locked)

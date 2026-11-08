@@ -7,6 +7,18 @@ struct MainPanel: View {
     @EnvironmentObject private var workspace: Workspace
 
     var body: some View {
+        if workspace.activeKind == .video {
+            VideoMainPanel()
+        } else {
+            ImageMainPanel()
+        }
+    }
+}
+
+struct ImageMainPanel: View {
+    @EnvironmentObject private var workspace: Workspace
+
+    var body: some View {
         if let action = workspace.action {
             VStack(spacing: 0) {
                 ActionTabs(current: action)
@@ -70,7 +82,7 @@ private struct ActionGrid: View {
                             .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.primary.opacity(0.08)))
                             .contentShape(RoundedRectangle(cornerRadius: 14))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(AppButtonStyle(.card))
                     }
                 }
             }
@@ -109,10 +121,10 @@ struct ChipButton: View {
     var body: some View {
         if selected {
             Button(action: action) { content }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(AppButtonStyle(.prominent))
         } else {
             Button(action: action) { content }
-                .buttonStyle(.bordered)
+                .buttonStyle(AppButtonStyle(.bordered))
         }
     }
 
@@ -125,7 +137,7 @@ struct ChipButton: View {
     }
 }
 
-private struct PanelContainer<Content: View>: View {
+struct PanelContainer<Content: View>: View {
     let title: String
     let subtitle: String
     @ViewBuilder let content: Content
@@ -183,7 +195,7 @@ struct CompressPanel: View {
                     } label: {
                         Text(preset.0).frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(AppButtonStyle(.bordered))
                 }
             }
             .frame(maxWidth: 420)
@@ -381,15 +393,10 @@ struct RunBar: View {
     @EnvironmentObject private var workspace: Workspace
     @State private var showCommand = false
 
-    private var runLabel: String {
-        guard let action = workspace.action else { return "Choose an action" }
-        if workspace.isRunning { return "Working…" }
-        let count = workspace.runCount
-        return "\(action.verb) \(count) \(count == 1 ? "image" : "images")"
-    }
+    private var runLabel: String { workspace.runLabel }
 
     private var canRun: Bool {
-        workspace.action != nil && workspace.runCount > 0 && !workspace.isRunning && app.runner != nil
+        workspace.hasAction && workspace.runCount > 0 && !workspace.isRunning && workspace.toolsReady
     }
 
     var body: some View {
@@ -457,6 +464,11 @@ struct RunBar: View {
             }
             if workspace.hasResults {
                 Button("Show in Finder") { workspace.revealResults() }
+                Button("Continue with results") { workspace.continueWithResults() }
+                    .help("Replace the list with the results, so you can edit them further")
+            }
+            if workspace.isRunning && workspace.activeKind == .video {
+                Button("Cancel") { workspace.cancel() }
             }
         }
     }
@@ -467,7 +479,7 @@ struct RunBar: View {
         } label: {
             Text(runLabel).frame(minWidth: minWidth)
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(AppButtonStyle(.prominent))
         .controlSize(.large)
         .keyboardShortcut(.defaultAction)
         .disabled(!canRun)

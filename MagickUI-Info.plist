@@ -31,6 +31,43 @@
 		</dict>
 		<dict>
 			<key>CFBundleTypeName</key>
+			<string>Video</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.movie</string>
+				<string>public.mpeg-4</string>
+				<string>com.apple.quicktime-movie</string>
+				<string>public.avi</string>
+				<string>public.mpeg</string>
+				<string>public.3gpp</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Video (other formats)</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>mkv</string>
+				<string>webm</string>
+				<string>wmv</string>
+				<string>flv</string>
+				<string>mpg</string>
+				<string>mpeg</string>
+				<string>mts</string>
+				<string>m2ts</string>
+				<string>ogv</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
 			<string>Folder</string>
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
@@ -59,6 +96,7 @@
 			<key>NSSendFileTypes</key>
 			<array>
 				<string>public.image</string>
+				<string>public.movie</string>
 				<string>public.folder</string>
 			</array>
 		</dict>
