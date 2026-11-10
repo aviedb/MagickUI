@@ -237,6 +237,16 @@ struct BackgroundModelSettingsTab: View {
                         LabeledContent("Disk space") { Text(formatBytes(record.diskBytes)) }
                     }
                 }
+                if model.isInstalled || model.cacheBytes > 0 {
+                    LabeledContent("Cache") {
+                        HStack(spacing: 10) {
+                            Text(model.cacheBytes > 0 ? formatBytes(model.cacheBytes) : "Empty")
+                                .foregroundStyle(.secondary)
+                            Button("Clear cache") { model.clearCache() }
+                                .disabled(model.cacheBytes == 0 || model.isBusy)
+                        }
+                    }
+                }
 
                 if let step = model.step {
                     if let fraction = step.fraction {
@@ -260,7 +270,7 @@ struct BackgroundModelSettingsTab: View {
             } header: {
                 Text("Remove background")
             } footer: {
-                Text("This tool is an optional download (\(formatBytes(ModelManifest.builtIn.sizeBytes))), so MagickUI stays small until you need it. It is the only thing MagickUI ever downloads. After that, background removal works offline. It is stored in ~/Library/Application Support/MagickUI/Models.")
+                Text("This tool is an optional download (\(formatBytes(ModelManifest.builtIn.sizeBytes))), so MagickUI stays small until you need it. It is the only thing MagickUI ever downloads. After that, background removal works offline. It is stored in ~/Library/Application Support/MagickUI/Models. Using it also builds up a cache, because macOS keeps prepared copies of the model. Clearing the cache is safe: the model stays installed, and the next background removal is just slower while your Mac prepares the model again.")
             }
 
             Section {

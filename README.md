@@ -58,7 +58,7 @@ PDF is intentionally not supported.
 - ImageMagick 7 (the `magick` command)
 - `jpegoptim` and `pngquant`, for Smart optimize on images
 - `ffmpeg` (which includes `ffprobe`), for the video tools
-- Optional, for Remove background: a one-time download of about 353 MB, and about 1.5 GB of free disk space while it installs (the model takes about 0.5 GB afterwards)
+- Optional, for Remove background: a one-time download of about 353 MB, and about 1.5 GB of free disk space while it installs
 - Xcode, to build the app from source
 
 ## Install
@@ -147,7 +147,8 @@ The model is **not** part of the app. The first time you choose **Remove backgro
 - The result is always a **PNG**, because PNG keeps the transparent areas. It is saved as `name_nobg.png`.
 - **Copy to clipboard** pastes the cutout with its transparency into other apps.
 - Images are processed one at a time, and the model is released from memory after a few idle minutes.
-- Manage the model in **Settings ▸ Models**: see its size, download it again, show it in Finder, or remove it to free about 0.5 GB.
+- Manage the model in **Settings ▸ Models**: see its size, download it again, show it in Finder, clear its cache, or remove it to free its disk space.
+- Using it builds up a cache on your Mac (macOS keeps prepared copies of the model so it starts faster). It is safe to delete, and **Settings ▸ Models ▸ Clear cache** does it for you. The model stays installed.
 - It is installed in `~/Library/Application Support/MagickUI/Models/withoutbg`.
 
 ### Resize, Rotate & flip, Remove metadata

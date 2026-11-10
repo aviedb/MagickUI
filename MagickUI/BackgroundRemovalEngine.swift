@@ -51,14 +51,39 @@ final class BackgroundRemovalEngine: @unchecked Sendable {
     private var cachedModel: MLModel?
     private var idleItem: DispatchWorkItem?
 
+    // Counts the images being processed right now. It has its own lock, so asking never waits for a model load.
+    private let runLock = NSLock()
+    private var activeRuns = 0
+
     private init() {}
+
+    /// True while an image is going through the model.
+    var isProcessing: Bool {
+        runLock.lock()
+        defer { runLock.unlock() }
+        return activeRuns > 0
+    }
+
+    private func beginRun() {
+        runLock.lock()
+        activeRuns += 1
+        runLock.unlock()
+    }
+
+    private func endRun() {
+        runLock.lock()
+        activeRuns -= 1
+        runLock.unlock()
+    }
 
     // MARK: Public
 
     /// Cuts out the subject and returns a PNG with a transparent background.
     /// Runs off the main thread.
     func cutoutPNG(from url: URL) async throws -> Data {
-        try await Task.detached(priority: .userInitiated) { [self] in
+        beginRun()
+        defer { endRun() }
+        return try await Task.detached(priority: .userInitiated) { [self] in
             try renderCutoutPNG(from: url)
         }.value
     }

@@ -34,6 +34,16 @@ nonisolated enum BackgroundModelFiles {
     static var licensesURL: URL {
         root.appendingPathComponent("licenses", isDirectory: true)
     }
+
+    /// Core ML's own cache for this app. macOS keeps prepared copies of the model here (it can grow to
+    /// about 1 GB), and builds them again whenever they are missing, so clearing it is always safe.
+    static var coreMLCacheURL: URL {
+        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+        let identifier = Bundle.main.bundleIdentifier ?? "MagickUI"
+        return caches
+            .appendingPathComponent(identifier, isDirectory: true)
+            .appendingPathComponent("com.apple.e5rt.e5bundlecache", isDirectory: true)
+    }
 }
 
 // MARK: - What to download
@@ -145,6 +155,8 @@ final class BackgroundModelStore: ObservableObject {
     /// Non-nil while an install is running.
     @Published private(set) var step: InstallStep?
     @Published var errorMessage: String?
+    /// Disk space used by Core ML's cache of prepared copies of the model.
+    @Published private(set) var cacheBytes: Int64 = 0
 
     private var installTask: Task<Void, Never>?
 
@@ -167,6 +179,36 @@ final class BackgroundModelStore: ObservableObject {
         } else {
             record = nil
         }
+        refreshCacheSize()
+    }
+
+    /// Measures the cache again (off the main thread).
+    func refreshCacheSize() {
+        Task {
+            let size = await Task.detached(priority: .utility) {
+                ModelFileTools.folderSize(BackgroundModelFiles.coreMLCacheURL)
+            }.value
+            cacheBytes = size
+        }
+    }
+
+    /// Deletes Core ML's cache. The model stays installed, and the next run is slower while the Mac prepares it again.
+    func clearCache() {
+        guard step == nil else { return }
+        guard !BackgroundRemovalEngine.shared.isProcessing else {
+            errorMessage = "An image is being processed. Clear the cache when it is finished."
+            return
+        }
+        BackgroundRemovalEngine.shared.unload()
+        do {
+            if FileManager.default.fileExists(atPath: BackgroundModelFiles.coreMLCacheURL.path) {
+                try FileManager.default.removeItem(at: BackgroundModelFiles.coreMLCacheURL)
+            }
+            errorMessage = nil
+        } catch {
+            errorMessage = "Couldn't clear the cache: \(error.localizedDescription)"
+        }
+        refreshCacheSize()
     }
 
     /// Downloads and installs the model. Safe to call again to reinstall.
@@ -188,6 +230,7 @@ final class BackgroundModelStore: ObservableObject {
         guard step == nil else { return }
         BackgroundRemovalEngine.shared.unload()
         try? FileManager.default.removeItem(at: BackgroundModelFiles.root)
+        try? FileManager.default.removeItem(at: BackgroundModelFiles.coreMLCacheURL)
         errorMessage = nil
         refresh()
     }
