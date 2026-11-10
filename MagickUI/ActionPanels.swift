@@ -41,6 +41,7 @@ struct ImageMainPanel: View {
         case .resize: ResizePanel()
         case .rotate: RotatePanel()
         case .metadata: MetadataPanel()
+        case .removeBackground: RemoveBackgroundPanel()
         }
     }
 }
@@ -393,12 +394,20 @@ struct MetadataPanel: View {
 struct RunBar: View {
     @EnvironmentObject private var app: AppState
     @EnvironmentObject private var workspace: Workspace
+    @EnvironmentObject private var backgroundModel: BackgroundModelStore
     @State private var showCommand = false
 
     private var runLabel: String { workspace.runLabel }
 
     private var canRun: Bool {
         workspace.hasAction && workspace.runCount > 0 && !workspace.isRunning && workspace.toolsReady
+            && backgroundModelReady
+    }
+
+    /// Remove background only runs once its optional model is installed (and not in the middle of installing).
+    private var backgroundModelReady: Bool {
+        guard workspace.activeKind == .image, workspace.action == .removeBackground else { return true }
+        return backgroundModel.isInstalled && !backgroundModel.isBusy
     }
 
     var body: some View {

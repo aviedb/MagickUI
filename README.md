@@ -2,7 +2,7 @@
 
 **A drop-first, offline image app for macOS, powered by ImageMagick.**
 
-Drop your images or videos into the window, then choose what to do: optimize them, compress to a target size, convert formats, crop or trim, resize, rotate, extract frames, or strip metadata. MagickUI can also live in your menu bar and optimize new images automatically as they land in folders you choose. Everything runs locally on your Mac and works in batch.
+Drop your images or videos into the window, then choose what to do: optimize them, compress to a target size, convert formats, crop or trim, resize, rotate, extract frames, remove backgrounds, or strip metadata. MagickUI can also live in your menu bar and optimize new images automatically as they land in folders you choose. Everything runs locally on your Mac and works in batch.
 
 <p align="center">
   <img src="docs/main-screen.png" alt="Main screen" width="49%">
@@ -26,6 +26,7 @@ There are plenty of online image tools (shout-out to my fav [ihateimg.cv](https:
 | **Resize** | Set exact pixels or scale by percent |
 | **Rotate & flip** | Rotate 90° or 180°, or mirror horizontally or vertically |
 | **Remove metadata** | Strips EXIF, GPS, and camera data before you share a photo |
+| **Remove background** | Cuts out the subject and saves a PNG with a transparent background, using an on-device AI model. The model is an optional one-time download (about 353 MB), so the app stays small until you need it |
 
 Beyond the main window:
 
@@ -57,6 +58,7 @@ PDF is intentionally not supported.
 - ImageMagick 7 (the `magick` command)
 - `jpegoptim` and `pngquant`, for Smart optimize on images
 - `ffmpeg` (which includes `ffprobe`), for the video tools
+- Optional, for Remove background: a one-time download of about 353 MB, and about 1.5 GB of free disk space while it installs
 - Xcode, to build the app from source
 
 ## Install
@@ -135,6 +137,19 @@ Pick a format chip, or choose **Other…** and type an extension (for example `j
 ### Crop
 
 Select an image, then drag on the preview to draw a crop box. Drag the corners or edges to resize it, and drag inside to move it. Pick an aspect ratio (Free, Original, 1:1, 4:3, 3:2, 16:9, 4:5, or Custom) and use **Swap landscape / portrait** if needed. Each image keeps its own crop. **Apply to all images** copies the crop proportionally to every image, and images without a crop are skipped.
+
+### Remove background
+
+Cuts out the subject and keeps the background transparent. It uses the [withoutBG Open Weights](https://withoutbg.com/open-weights-model) model, which runs on your Mac through Core ML (the Neural Engine and GPU when available), so your images are never uploaded.
+
+The model is **not** part of the app. The first time you choose **Remove background**, the panel offers a one-time **Download model** button (about 353 MB). MagickUI downloads it, checks that it is intact, prepares it for your Mac and installs it by itself. There is nothing to copy by hand. After that, Remove background works offline.
+
+- The result is always a **PNG**, because PNG keeps the transparent areas. It is saved as `name_nobg.png`.
+- **Copy to clipboard** pastes the cutout with its transparency into other apps.
+- Images are processed one at a time, and the model is released from memory after a few idle minutes.
+- Manage the model in **Settings ▸ Models**: see its size, download it again, show it in Finder, clear its cache, or remove it to free its disk space.
+- Using it builds up a cache on your Mac (macOS keeps prepared copies of the model so it starts faster). It is safe to delete, and **Settings ▸ Models ▸ Clear cache** does it for you. The model stays installed.
+- It is installed in `~/Library/Application Support/MagickUI/Models/withoutbg`.
 
 ### Resize, Rotate & flip, Remove metadata
 
@@ -240,7 +255,7 @@ Turn on **Launch MagickUI at login** in **Settings ▸ General** to start watchi
 
 - From the main window, results are written when you click **Save**: next to each original, or in the folder you choose. **Copy to clipboard** doesn't save anything. Originals are never overwritten.
 - Name clashes get a number: `photo 2.jpg`, `photo 3.jpg`.
-- Files get a suffix by action: `_optimized`, `_compressed`, `_cropped`, `_resized`, `_rotated`, `_clean`. Convert keeps the original name with a new extension (or `_converted` if the format stays the same).
+- Files get a suffix by action: `_optimized`, `_compressed`, `_cropped`, `_resized`, `_rotated`, `_clean`, `_nobg`. Convert keeps the original name with a new extension (or `_converted` if the format stays the same).
 - Videos get `_optimized`, `_compressed`, `_720p` (or `_30fps`), `_trimmed`, and `_frame_12-50s` (the time of the frame). Convert gives the video a new extension.
 - **Watched folders** replace the original by default, and move it to the Trash (or overwrite it, if you choose that).
 
@@ -275,6 +290,7 @@ You can also drop a folder.
 - **There's no Dock icon.** That is the default. Use the menu bar icon, or change **Settings ▸ General ▸ Dock icon**.
 - **No floating preview appears.** Check that it is turned on in **Settings ▸ General ▸ Floating preview**, and use **Try it** to see a demo card.
 - **macOS asks for access to Pictures, Desktop, or Downloads.** Click **Allow**, so the app can read your images and write the results.
+- **Remove background says the model isn't installed, or the download fails.** Open **Settings ▸ Models** and click **Download model** (or **Download again**). It needs an internet connection and about 1.5 GB of free disk space while it installs. If it says the file is damaged, just try again.
 - **Build errors.** Make sure App Sandbox is off, the destination is My Mac, and **Info.plist File** is set to `MagickUI-Info.plist`. If you still have a problem, open an issue with the full error text.
 
 ## Roadmap
@@ -302,10 +318,10 @@ You can also drop a folder.
 
 ## Credits
 
-Built on [ImageMagick](https://imagemagick.org), which is a separate project with its own license and is not bundled with this app. Smart optimize for images uses [jpegoptim](https://github.com/tjko/jpegoptim) and [pngquant](https://pngquant.org), and the video tools use [ffmpeg](https://ffmpeg.org). They are separate open-source projects that are not bundled. Inspired by [ihateimg.cv](https://ihateimg.cv).
+Built on [ImageMagick](https://imagemagick.org), which is a separate project with its own license and is not bundled with this app. Smart optimize for images uses [jpegoptim](https://github.com/tjko/jpegoptim) and [pngquant](https://pngquant.org), and the video tools use [ffmpeg](https://ffmpeg.org). They are separate open-source projects that are not bundled. Inspired by [ihateimg.cv](https://ihateimg.cv). Remove background uses [withoutBG Open Weights](https://withoutbg.com/open-weights-model), which is built with DINOv3 (Copyright Meta Platforms, Inc. and affiliates), and incorporates Depth Anything V2 and IS-Net. The model is downloaded separately (it is not bundled), together with its full license notices.
 
 ## License
 
 MagickUI is released under the [MIT License](LICENSE).
 
-ImageMagick, jpegoptim, pngquant, and ffmpeg are separate projects under their own licenses and are not bundled with this app.
+ImageMagick, jpegoptim, pngquant, and ffmpeg are separate projects under their own licenses and are not bundled with this app. The optional Remove background model is a separate download under the [withoutBG Open Weights license](https://withoutbg.com/open-weights-model/license) and the [DINOv3 License](https://ai.meta.com/resources/models-and-libraries/dinov3-license/), and is not covered by the MIT License above.

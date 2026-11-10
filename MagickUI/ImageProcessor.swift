@@ -48,8 +48,8 @@ nonisolated struct ImageProcessor {
         let heicNote = isHEIC ? "saved as JPG" : ""
 
         switch action {
-        case .compress, .optimize:
-            throw MagickError(message: "Compress and Smart optimize don't use a single magick command.")
+        case .compress, .optimize, .removeBackground:
+            throw MagickError(message: "Compress, Smart optimize and Remove background don't use a single magick command.")
 
         case .convert:
             let s = settings.convert
@@ -149,6 +149,9 @@ nonisolated struct ImageProcessor {
             return try await processCompress(job: job, settings: settings.compress,
                                              outputDirectory: outputDirectory, reserved: &reserved)
         }
+        if action == .removeBackground {
+            return try await removeBackground(job: job, outputDirectory: outputDirectory, reserved: &reserved)
+        }
 
         let plan = try Self.makePlan(action: action, settings: settings, job: job, writableFormats: writableFormats)
         let stem = OutputNaming.sanitize(job.url.deletingPathExtension().lastPathComponent) + plan.suffix
@@ -163,6 +166,21 @@ nonisolated struct ImageProcessor {
             throw MagickError(message: "magick finished but no output file was created.")
         }
         return .done(output: output, inBytes: job.byteSize, outBytes: fileSize(output), note: plan.note)
+    }
+
+    /// Remove background. Not an ImageMagick job: the picture goes through the Core ML model and the result
+    /// is always a PNG, because only PNG keeps the transparent areas.
+    private func removeBackground(job: ImageJob,
+                                  outputDirectory: URL?,
+                                  reserved: inout Set<String>) async throws -> ItemStatus {
+        let png = try await BackgroundRemovalEngine.shared.cutoutPNG(from: job.url)
+
+        let stem = OutputNaming.sanitize(job.url.deletingPathExtension().lastPathComponent)
+            + ImageAction.removeBackground.suffix
+        let directory = outputDirectory ?? job.url.deletingLastPathComponent()
+        let output = OutputNaming.uniqueURL(directory: directory, stem: stem, ext: "png", reserved: &reserved)
+        try png.write(to: output, options: .atomic)
+        return .done(output: output, inBytes: job.byteSize, outBytes: Int64(png.count), note: "transparent PNG")
     }
 
     private func processCompress(job: ImageJob,

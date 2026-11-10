@@ -902,7 +902,8 @@ final class Workspace: ObservableObject {
         for index in indices {
             let item = items[index]
             items[index].status = .running(action == .compress ? "Finding the best fit…"
-                                           : (action == .optimize ? "Optimizing…" : "Working…"))
+                                           : (action == .optimize ? "Optimizing…"
+                                              : (action == .removeBackground ? "Removing the background…" : "Working…")))
             do {
                 // The result waits in a temporary folder until the user copies or saves it.
                 let folder = try stagingFolder(for: item.id, in: runFolder)

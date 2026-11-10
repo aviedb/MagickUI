@@ -61,6 +61,8 @@ final class AppContext {
     let settings = AppSettings()
     let ruleStore = RuleStore()
     let videoRuleStore = VideoRuleStore()
+    /// The optional Remove background model: its download, install and removal.
+    let backgroundModel = BackgroundModelStore()
     lazy var workspace = Workspace(app: appState)
     lazy var watcher = WatchManager(app: appState, store: ruleStore, settings: settings)
     /// Video folders have their own list and their own queue. "Pause folder watching" pauses both.
@@ -204,6 +206,7 @@ final class AppContext {
             let root = RootView()
                 .environmentObject(appState)
                 .environmentObject(workspace)
+                .environmentObject(backgroundModel)
             mainWindow = makeWindow(title: "MagickUI",
                                     size: NSSize(width: 1100, height: 720),
                                     minSize: NSSize(width: 440, height: 360),
@@ -222,6 +225,7 @@ final class AppContext {
                 .environmentObject(watcher)
                 .environmentObject(videoRuleStore)
                 .environmentObject(videoWatcher)
+                .environmentObject(backgroundModel)
             settingsWindow = makeWindow(title: "MagickUI Settings",
                                         size: NSSize(width: 780, height: 540),
                                         minSize: NSSize(width: 620, height: 440),
