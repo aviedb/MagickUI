@@ -31,7 +31,7 @@ struct ImageItem: Identifiable {
 // MARK: - Actions
 
 nonisolated enum ImageAction: String, CaseIterable, Identifiable {
-    case optimize, compress, convert, crop, resize, rotate, metadata
+    case optimize, compress, convert, crop, resize, rotate, metadata, removeBackground
 
     var id: String { rawValue }
 
@@ -44,6 +44,7 @@ nonisolated enum ImageAction: String, CaseIterable, Identifiable {
         case .resize: return "Resize"
         case .rotate: return "Rotate & flip"
         case .metadata: return "Remove metadata"
+        case .removeBackground: return "Remove background"
         }
     }
 
@@ -56,6 +57,7 @@ nonisolated enum ImageAction: String, CaseIterable, Identifiable {
         case .resize: return "Set exact pixels or scale by percent."
         case .rotate: return "Rotate 90° or 180°, or mirror the image."
         case .metadata: return "Strip EXIF, GPS and camera data before sharing."
+        case .removeBackground: return "Cut out the subject and keep a transparent background. Runs on your Mac."
         }
     }
 
@@ -68,6 +70,7 @@ nonisolated enum ImageAction: String, CaseIterable, Identifiable {
         case .resize: return "arrow.up.left.and.arrow.down.right"
         case .rotate: return "rotate.right"
         case .metadata: return "location.slash"
+        case .removeBackground: return "person.and.background.dotted"
         }
     }
 
@@ -81,6 +84,7 @@ nonisolated enum ImageAction: String, CaseIterable, Identifiable {
         case .resize: return "Resize"
         case .rotate: return "Apply to"
         case .metadata: return "Clean"
+        case .removeBackground: return "Remove background from"
         }
     }
 
@@ -94,6 +98,7 @@ nonisolated enum ImageAction: String, CaseIterable, Identifiable {
         case .resize: return "_resized"
         case .rotate: return "_rotated"
         case .metadata: return "_clean"
+        case .removeBackground: return "_nobg"
         }
     }
 }

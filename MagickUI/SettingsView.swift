@@ -13,6 +13,8 @@ struct SettingsView: View {
                 .tabItem { Label("Video Folders", systemImage: "film") }
             GeneralTab()
                 .tabItem { Label("General", systemImage: "gearshape") }
+            BackgroundModelSettingsTab()
+                .tabItem { Label("Models", systemImage: "cpu") }
         }
         .frame(minWidth: 600, minHeight: 420)
         .buttonStyle(AppButtonStyle(.bordered))
