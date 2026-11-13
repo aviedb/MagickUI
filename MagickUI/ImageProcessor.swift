@@ -8,7 +8,7 @@ nonisolated struct ProcessorSettings {
     var compress = CompressSettings()
     var convert = ConvertSettings()
     var resize = ResizeSettings()
-    var rotate: RotateOperation = .right90
+    var rotate = RotateSettings()
 }
 
 nonisolated struct ImageJob {
@@ -119,9 +119,10 @@ nonisolated struct ImageProcessor {
             }
 
         case .rotate:
-            let operation = settings.rotate
+            let edit = settings.rotate
+            guard !edit.isUnchanged else { throw ItemSkip(message: "Nothing to rotate or flip.") }
             return Plan(ext: sameExt, suffix: action.suffix, note: heicNote) { input, output in
-                [input, "-auto-orient"] + operation.arguments + [output]
+                [input, "-auto-orient"] + edit.arguments + [output]
             }
 
         case .metadata:

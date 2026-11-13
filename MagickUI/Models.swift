@@ -55,7 +55,7 @@ nonisolated enum ImageAction: String, CaseIterable, Identifiable {
         case .convert: return "Turn images into JPG, PNG, WebP, HEIC and more."
         case .crop: return "Drag to crop, with aspect-ratio presets and a live preview."
         case .resize: return "Set exact pixels or scale by percent."
-        case .rotate: return "Rotate 90° or 180°, or mirror the image."
+        case .rotate: return "Turn or mirror the picture, with a live preview."
         case .metadata: return "Strip EXIF, GPS and camera data before sharing."
         case .removeBackground: return "Cut out the subject and keep a transparent background. Runs on your Mac."
         }
@@ -164,10 +164,10 @@ nonisolated struct ResizeSettings: Codable {
     var shrinkOnly = true
 }
 
-nonisolated enum RotateOperation: String, CaseIterable, Identifiable, Codable {
-    case right90 = "Rotate right 90°"
-    case left90 = "Rotate left 90°"
-    case turn180 = "Rotate 180°"
+/// One button in Rotate & flip.
+nonisolated enum RotateOperation: String, CaseIterable, Identifiable {
+    case rotateLeft = "Rotate left"
+    case rotateRight = "Rotate right"
     case flipHorizontal = "Flip horizontal"
     case flipVertical = "Flip vertical"
 
@@ -175,23 +175,68 @@ nonisolated enum RotateOperation: String, CaseIterable, Identifiable, Codable {
 
     var symbol: String {
         switch self {
-        case .right90: return "rotate.right"
-        case .left90: return "rotate.left"
-        case .turn180: return "arrow.uturn.down"
+        case .rotateLeft: return "rotate.left"
+        case .rotateRight: return "rotate.right"
         case .flipHorizontal: return "arrow.left.and.right.righttriangle.left.righttriangle.right"
         case .flipVertical: return "arrow.up.and.down.righttriangle.up.righttriangle.down"
         }
     }
+}
 
-    /// magick: `-rotate` is clockwise for positive degrees; `-flop` mirrors left-right, `-flip` top-bottom.
-    var arguments: [String] {
-        switch self {
-        case .right90: return ["-rotate", "90"]
-        case .left90: return ["-rotate", "-90"]
-        case .turn180: return ["-rotate", "180"]
-        case .flipHorizontal: return ["-flop"]
-        case .flipVertical: return ["-flip"]
+/// What the Rotate & flip buttons have added up to so far. Every press changes this, and the preview and the
+/// final result both follow it. The picture is rotated first, then mirrored left-right if `mirrored` is on.
+nonisolated struct RotateSettings: Equatable {
+    /// Clockwise degrees, always a multiple of 90. It keeps counting up or down (it is not wrapped to 0...360),
+    /// so the preview always turns the short way round.
+    var angle = 0
+    var mirrored = false
+
+    /// The angle as 0, 90, 180 or 270.
+    var normalizedAngle: Int { ((angle % 360) + 360) % 360 }
+
+    var isUnchanged: Bool { normalizedAngle == 0 && !mirrored }
+
+    /// Adds one button press. The buttons act on what is on screen, so after a mirror a "rotate right"
+    /// still turns the picture clockwise as you see it.
+    mutating func apply(_ operation: RotateOperation) {
+        switch operation {
+        case .rotateRight: angle += mirrored ? -90 : 90
+        case .rotateLeft: angle += mirrored ? 90 : -90
+        case .flipHorizontal: mirrored.toggle()
+        case .flipVertical:
+            // Flipping top-bottom is the same as mirroring left-right and turning 180°.
+            mirrored.toggle()
+            angle += 180
         }
+    }
+
+    /// Back to the original, turning the short way round.
+    mutating func reset() {
+        let turn = normalizedAngle
+        angle += turn <= 180 ? -turn : 360 - turn
+        mirrored = false
+    }
+
+    /// magick: `-rotate` is clockwise for positive degrees, and `-flop` mirrors left-right.
+    var arguments: [String] {
+        var result: [String] = []
+        if normalizedAngle != 0 { result += ["-rotate", String(normalizedAngle)] }
+        if mirrored { result.append("-flop") }
+        return result
+    }
+
+    /// A sentence for the panel, such as "Rotated 90° right, mirrored".
+    var summary: String {
+        if isUnchanged { return "No changes yet. Use the buttons to rotate or flip the picture." }
+        var parts: [String] = []
+        switch normalizedAngle {
+        case 90: parts.append("Rotated 90° right")
+        case 180: parts.append("Rotated 180°")
+        case 270: parts.append("Rotated 90° left")
+        default: break
+        }
+        if mirrored { parts.append(parts.isEmpty ? "Mirrored left to right" : "mirrored left to right") }
+        return parts.joined(separator: ", ")
     }
 }
 

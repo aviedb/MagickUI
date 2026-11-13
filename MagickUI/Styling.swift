@@ -161,3 +161,39 @@ struct AppButtonStyle: ButtonStyle {
         }
     }
 }
+
+// MARK: - Transparency grid
+
+/// The classic light checkerboard that stands for "transparent". It goes behind pictures that can have
+/// see-through areas, so those areas are easy to tell from white.
+struct TransparencyGrid: View {
+    var cell: CGFloat = 12
+
+    var body: some View {
+        Canvas { context, size in
+            context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(.white))
+            let rows = Int((size.height / cell).rounded(.up))
+            let columns = Int((size.width / cell).rounded(.up))
+            guard rows > 0, columns > 0 else { return }
+            for row in 0..<rows {
+                for column in 0..<columns where (row + column) % 2 == 0 {
+                    let square = CGRect(x: CGFloat(column) * cell, y: CGFloat(row) * cell, width: cell, height: cell)
+                    context.fill(Path(square), with: .color(Color(white: 0.9)))
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Slider without tick marks
+
+/// A slider that moves in whole numbers. `Slider(step:)` draws a tick mark for every step, which looks
+/// like a row of dots under the slider, so this rounds the value itself instead.
+struct WholeNumberSlider: View {
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+
+    var body: some View {
+        Slider(value: Binding(get: { value }, set: { value = $0.rounded() }), in: range)
+    }
+}

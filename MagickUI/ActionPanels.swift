@@ -280,7 +280,7 @@ struct ConvertPanel: View {
                             .monospacedDigit()
                             .foregroundStyle(.secondary)
                     }
-                    Slider(value: $workspace.convert.quality, in: 30...100, step: 1)
+                    WholeNumberSlider(value: $workspace.convert.quality, range: 30...100)
                         .frame(maxWidth: 380)
                 }
             }
@@ -330,7 +330,7 @@ struct ResizePanel: View {
                             .monospacedDigit()
                             .foregroundStyle(.secondary)
                     }
-                    Slider(value: $workspace.resize.percent, in: 1...200, step: 1)
+                    WholeNumberSlider(value: $workspace.resize.percent, range: 1...200)
                         .frame(maxWidth: 380)
                 }
             }
@@ -343,27 +343,6 @@ struct ResizePanel: View {
             TextField("", value: value, format: integerFormat)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 120)
-        }
-    }
-}
-
-// MARK: - Rotate & flip
-
-struct RotatePanel: View {
-    @EnvironmentObject private var workspace: Workspace
-    private let columns = [GridItem(.adaptive(minimum: 190), spacing: 8)]
-
-    var body: some View {
-        PanelContainer(title: "Rotate & flip",
-                       subtitle: "Applies to every image in the list. HEIC files are saved as JPG.") {
-            LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
-                ForEach(RotateOperation.allCases) { operation in
-                    ChipButton(label: operation.rawValue, symbol: operation.symbol,
-                               selected: workspace.rotate == operation) {
-                        workspace.rotate = operation
-                    }
-                }
-            }
         }
     }
 }
@@ -401,7 +380,7 @@ struct RunBar: View {
 
     private var canRun: Bool {
         workspace.hasAction && workspace.runCount > 0 && !workspace.isRunning && workspace.toolsReady
-            && backgroundModelReady
+            && workspace.hasWorkToDo && backgroundModelReady
     }
 
     /// Remove background only runs once its optional model is installed (and not in the middle of installing).
@@ -590,7 +569,7 @@ struct OptimizeOptionsView: View {
 
                 if settings.level == .custom {
                     HStack {
-                        Slider(value: customFactor, in: 5...100, step: 1)
+                        WholeNumberSlider(value: customFactor, range: 5...100)
                             .frame(width: 260)
                         Text("\(settings.factor)")
                             .monospacedDigit()

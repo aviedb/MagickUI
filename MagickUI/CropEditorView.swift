@@ -176,8 +176,9 @@ private struct CropResultPreview: View {
             Image(nsImage: NSImage(cgImage: cropped, size: NSSize(width: cropped.width, height: cropped.height)))
                 .resizable()
                 .scaledToFit()
+                .background(TransparencyGrid(cell: 8))
+                .overlay(Rectangle().strokeBorder(Color.primary.opacity(0.3), lineWidth: 1))
                 .frame(maxWidth: .infinity, maxHeight: 150)
-                .overlay(Rectangle().strokeBorder(Color.primary.opacity(0.15)))
         }
     }
 
@@ -233,10 +234,22 @@ struct CropEditorView: View {
             let scale = pixelSize.width > 0 ? fit.width / pixelSize.width : 1
 
             ZStack(alignment: .topLeading) {
+                // The checkerboard shows through any see-through parts of the picture.
+                TransparencyGrid()
+                    .frame(width: fit.width, height: fit.height)
+                    .position(x: fit.midX, y: fit.midY)
+
                 Image(decorative: image, scale: 1)
                     .resizable()
                     .frame(width: fit.width, height: fit.height)
                     .position(x: fit.midX, y: fit.midY)
+
+                // A thin border around the picture.
+                Rectangle()
+                    .strokeBorder(Color.primary.opacity(0.3), lineWidth: 1)
+                    .frame(width: fit.width, height: fit.height)
+                    .position(x: fit.midX, y: fit.midY)
+                    .allowsHitTesting(false)
 
                 cropOverlay(fit: fit, scale: scale, highlight: activeHandle)
             }

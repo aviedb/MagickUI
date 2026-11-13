@@ -84,24 +84,6 @@ private struct CutoutPreview: View {
     }
 }
 
-/// The classic light-grey checkerboard that stands for "transparent".
-private struct TransparencyGrid: View {
-    var body: some View {
-        Canvas { context, size in
-            let cell: CGFloat = 12
-            context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(.white))
-            let rows = Int((size.height / cell).rounded(.up))
-            let columns = Int((size.width / cell).rounded(.up))
-            for row in 0..<rows {
-                for column in 0..<columns where (row + column) % 2 == 0 {
-                    let rect = CGRect(x: CGFloat(column) * cell, y: CGFloat(row) * cell, width: cell, height: cell)
-                    context.fill(Path(rect), with: .color(Color(white: 0.9)))
-                }
-            }
-        }
-    }
-}
-
 // MARK: - The download card
 
 /// Offers the model download, shows its progress, and confirms when it is ready.

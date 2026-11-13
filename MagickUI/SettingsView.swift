@@ -293,7 +293,7 @@ private struct RuleDetail: View {
             if rule.optimize.level == .custom {
                 LabeledContent("Custom strength") {
                     HStack(spacing: 8) {
-                        Slider(value: customStrength, in: 5...100, step: 1)
+                        WholeNumberSlider(value: customStrength, range: 5...100)
                             .frame(width: 150)
                         Text("\(rule.optimize.factor)")
                             .monospacedDigit()
@@ -346,7 +346,7 @@ private struct RuleDetail: View {
             if ImageFiles.lossyOutputs.contains(rule.convert.target) {
                 LabeledContent("Quality") {
                     HStack(spacing: 8) {
-                        Slider(value: $rule.convert.quality, in: 30...100, step: 1)
+                        WholeNumberSlider(value: $rule.convert.quality, range: 30...100)
                             .frame(width: 150)
                         Text("\(Int(rule.convert.quality))")
                             .monospacedDigit()

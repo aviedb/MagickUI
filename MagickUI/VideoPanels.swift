@@ -616,7 +616,7 @@ struct VideoFramePanel: View {
                 if ImageFiles.lossyOutputs.contains(workspace.frameFormat.resolvedExtension) {
                     HStack {
                         Text("Quality")
-                        Slider(value: $workspace.frameFormat.quality, in: 30...100, step: 1)
+                        WholeNumberSlider(value: $workspace.frameFormat.quality, range: 30...100)
                             .frame(width: 220)
                         Text("\(Int(workspace.frameFormat.quality))")
                             .monospacedDigit()

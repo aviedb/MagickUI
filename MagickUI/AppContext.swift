@@ -173,6 +173,10 @@ final class AppContext {
         window.title = title
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.isReleasedWhenClosed = false
+        // The same window object is shown again every time, so macOS would send you back to the desktop (Space)
+        // it was last on. This makes it open on the desktop you are on now, and not be restored to an old one.
+        window.collectionBehavior.insert(.moveToActiveSpace)
+        window.isRestorable = false
         window.contentMinSize = minSize
         window.setContentSize(size)
         if !window.setFrameUsingName(autosaveName) {
@@ -212,8 +216,17 @@ final class AppContext {
                                     minSize: NSSize(width: 440, height: 360),
                                     autosaveName: "MagickUIMainWindow",
                                     content: root)
+            // Closing the window (⌘W or the red button) forgets every image and video, so the next time starts clean.
+            NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification,
+                                                   object: mainWindow,
+                                                   queue: .main) { [weak self] _ in
+                Task { @MainActor in self?.workspace.resetForClosedWindow() }
+            }
         }
-        if let window = mainWindow { present(window) }
+        if let window = mainWindow {
+            workspace.cancelPendingClear()
+            present(window)
+        }
     }
 
     func showSettings() {

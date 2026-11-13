@@ -27,7 +27,7 @@ final class Workspace: ObservableObject {
     @Published var compress = CompressSettings()
     @Published var convert = ConvertSettings()
     @Published var resize = ResizeSettings()
-    @Published var rotate: RotateOperation = .right90
+    @Published var rotate = RotateSettings()
     @Published var cropSettings = CropSettings()
     /// Crop rectangle per image, in oriented image pixels.
     @Published var cropRects: [UUID: CGRect] = [:]
@@ -59,6 +59,8 @@ final class Workspace: ObservableObject {
     @Published private(set) var ffmpegEncoders: Set<String> = []
 
     private var ffmpegRunner: FFmpegRunner?
+    /// The window was closed while a run was still going. The list is cleared as soon as the run ends.
+    private var clearWhenRunFinishes = false
 
     /// Every run writes its results under here, in its own folder.
     private static let stagingRoot = FileManager.default.temporaryDirectory
@@ -228,6 +230,12 @@ final class Workspace: ObservableObject {
             if case .done = item.status { return true }
             return false
         }
+    }
+
+    /// Some actions have nothing to do until a change is made first (Rotate & flip, before any button is pressed).
+    var hasWorkToDo: Bool {
+        if activeKind == .image, action == .rotate { return !rotate.isUnchanged }
+        return true
     }
 
     /// How many results are finished but not yet copied or saved.
@@ -408,8 +416,34 @@ final class Workspace: ObservableObject {
         cropPreview = nil
         action = nil
         videoAction = nil
+        rotate = RotateSettings()
         notice = nil
         purgeUnusedPastedFiles()
+    }
+
+    /// The window was closed (⌘W or the red button): forget every image and video, so the next time starts clean.
+    func resetForClosedWindow() {
+        pendingDrop = nil
+        toast = nil
+        notice = nil
+        if isRunning {
+            // Don't pull the list out from under a run. It is cleared the moment the run ends.
+            clearWhenRunFinishes = true
+            cancel()
+        } else {
+            clearAll()
+        }
+    }
+
+    /// The window was opened again before a run that was waiting to clear the list had ended.
+    func cancelPendingClear() {
+        clearWhenRunFinishes = false
+    }
+
+    private func finishPendingClear() {
+        guard clearWhenRunFinishes else { return }
+        clearWhenRunFinishes = false
+        clearAll()
     }
 
     func select(_ id: UUID) {
@@ -920,7 +954,12 @@ final class Workspace: ObservableObject {
                 items[index].status = .failed(error.localizedDescription)
             }
         }
+        // The rotation was applied, so the next image starts from scratch (the buttons count from zero again).
+        if action == .rotate, items.contains(where: { if case .done = $0.status { return true } else { return false } }) {
+            rotate = RotateSettings()
+        }
         isRunning = false
+        finishPendingClear()
     }
 
     private func runVideos() async {
@@ -1003,6 +1042,7 @@ final class Workspace: ObservableObject {
 
         ffmpegRunner = nil
         isRunning = false
+        finishPendingClear()
     }
 
     private func setProgress(_ fraction: Double, for id: UUID) {
