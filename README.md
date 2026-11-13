@@ -49,7 +49,7 @@ Video tools (they appear when you drop a video):
 | **Trim** | Cuts the start and end with a two-handle slider and a frame preview, with a precise or a lossless fast mode |
 | **Export frame** | Saves any moment (or several evenly spaced frames) as an image, in any of the image formats |
 
-PDF is intentionally not supported.
+> The Preview app on Mac already does so much, like organizing pages, basic editing, rotating, signing and more. It doesn't make sense for MagickUI to duplicate tools that are already built in, so it only makes up for the ones that are not in Preview! That means no reordering, deleting or inserting pages, no merging files, no annotating or highlighting, no filling in forms, no signing and no password protection. MagickUI sticks to what Preview doesn't do well for PDFs: smaller files with a say in the quality, an exact target size, batch and automatic processing from watched folders, and converting between PDFs and images.
 
 ## Requirements
 
@@ -308,6 +308,17 @@ You can also drop a folder.
 - [ ] Tone mapping, so HDR videos can become SDR without looking flat
 - [ ] Remove or replace the audio track
 - [ ] Join several clips into one
+
+**PDF (planned):**
+
+- [ ] Drop PDFs into the window, as a third kind of file next to images and videos
+- [ ] Smart optimize: makes a PDF smaller **without changing its pages**. First a lossless cleanup, then the pictures inside are re-compressed at a Balanced or Aggressive strength. A result that isn't smaller is never kept
+- [ ] Compress to a target size (for example 2 MB): lowers picture quality and resolution step by step, only as far as needed. PDFs already under the target are left alone
+- [ ] PDF to images: saves every page (or the pages you pick) as PNG, JPG, WebP or any other image format your ImageMagick can write, at a resolution you choose
+- [ ] Images to PDF: combines the images in the list into one PDF, in the order shown (or one PDF per image), on pages that fit each image or on A4 or Letter
+- [ ] Watched folders for PDFs: a **PDF Folders** tab in Settings with its own list of folders, Smart optimize or Compress to size for each, and the original moved to the Trash or overwritten, like images and videos
+- [ ] The floating preview and the menu bar pause switch also cover PDFs
+- [ ] The tools behind it: [Ghostscript](https://ghostscript.com) (`gs`) to re-compress the pictures (ImageMagick also needs it to read PDFs), and [qpdf](https://qpdf.sourceforge.io) for the lossless cleanup. Install them with `brew install ghostscript qpdf`. Like ffmpeg, they are separate projects that are not bundled with the app (Ghostscript is AGPL-licensed), and **Settings ▸ General ▸ Tools** will show whether they are found
 
 **Everything else:**
 
